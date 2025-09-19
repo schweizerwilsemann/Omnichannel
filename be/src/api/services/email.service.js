@@ -1,0 +1,60 @@
+import { readFileSync } from 'fs';
+import path from 'path';
+import Mustache from 'mustache';
+import { transporter } from '../../config/email.js';
+import env from '../../config/env.js';
+import logger from '../../config/logger.js';
+import { EMAIL_ACTIONS } from '../utils/common.js';
+
+const templatesDir = path.join(process.cwd(), 'src', 'api', 'templates');
+
+const readTemplate = (templateName) => {
+    const templatePath = path.join(templatesDir, templateName);
+    return readFileSync(templatePath, 'utf8');
+};
+
+const getEmailData = (action, payload) => {
+    switch (action) {
+        case EMAIL_ACTIONS.ACCOUNT_CREATED: {
+            const template = readTemplate('accountCreated.html');
+            const fullName = [payload.firstName, payload.lastName]
+                .filter(Boolean)
+                .join(' ')
+                .trim() || 'there';
+
+            const view = {
+                name: fullName,
+                email: payload.email || '',
+                appUrl: env.app.appUrl
+            };
+
+            return {
+                subject: 'Welcome to Omnichannel',
+                html: Mustache.render(template, view)
+            };
+        }
+        default:
+            throw new Error(`Unsupported email action: ${action}`);
+    }
+};
+
+export const sendEmail = async (payload, to, action, attachments = []) => {
+    logger.debug(`Preparing email for ${to} using action ${action}`);
+
+    const emailData = getEmailData(action, payload);
+    const options = {
+        from: env.email.user,
+        to,
+        subject: emailData.subject,
+        html: emailData.html,
+        attachments
+    };
+
+    try {
+        logger.info(`Sending email to ${to} with subject "${emailData.subject}"`);
+        return await transporter.sendMail(options);
+    } catch (error) {
+        logger.error('Error sending email', { message: error.message });
+        throw error;
+    }
+};

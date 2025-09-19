@@ -1,0 +1,30 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.out
+
+# Build directories
+/build/
+/bin/
+/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dependency directories
+/node_modules/
+/vendor/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# Environment files
+.env

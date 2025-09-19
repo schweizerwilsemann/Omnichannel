@@ -1,0 +1,9 @@
+packages:
+  - be
+  - fe
+  - fe-customer
+  - minio
+
+ignoredBuiltDependencies:
+  - core-js
+  - core-js-pure

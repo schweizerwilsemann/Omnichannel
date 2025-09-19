@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Welcome to Omnichannel</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                color: #333333;
+                line-height: 1.6;
+            }
+            .button {
+                display: inline-block;
+                padding: 10px 20px;
+                background-color: #2563eb;
+                color: #ffffff;
+                text-decoration: none;
+                border-radius: 4px;
+                margin-top: 16px;
+            }
+        </style>
+    </head>
+    <body>
+        <p>Hi {{name}},</p>
+        <p>Welcome to Omnichannel! Your administrator account has been created with the email <strong>{{email}}</strong>.</p>
+        <p>You can sign in to manage your restaurant using the link below:</p>
+        <p>
+            <a class="button" href="{{appUrl}}" target="_blank" rel="noopener noreferrer">Go to Dashboard</a>
+        </p>
+        <p>If you did not expect this email, please contact our support team.</p>
+        <p>Thanks,<br />The Omnichannel Team</p>
+    </body>
+</html>

@@ -1,0 +1,19 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: supersecretpassword
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
+      MINIO_SERVER_URL: http://localhost:9000
+
+
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3000
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console UI
+    volumes:
+      - /mnt/d/minio-data:/data
+    restart: unless-stopped

@@ -1,0 +1,20 @@
+# Omnichannel Customer Web App
+
+This package provides the customer-facing ordering experience for the Omnichannel platform.
+
+## Getting Started
+
+1. Copy `.env.example` to `.env` and adjust `REACT_APP_BASE_URL` to point at the backend API.
+2. Install dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
+3. Run the development server:
+
+   ```bash
+   pnpm start
+   ```
+
+The application expects to be opened with a `qr` query parameter (for example `http://localhost:3001/?qr=table-abc`).

@@ -1,0 +1,14 @@
+
+node_modules
+dist
+build
+bin
+.DS_Store
+.vscode
+.idea
+
+.env 
+.env.development
+.env.production
+
+*.log
