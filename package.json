@@ -19,5 +19,9 @@
     "build:fe-administrator": "pnpm --filter ./fe-administrator run build",
     "lint": "pnpm -w -r run lint",
     "test": "pnpm -w -r run test"
+  },
+  "devDependencies": {
+    "eslint-config-react-app": "^7.0.1",
+    "eslint-plugin-react-hooks": "^5.2.0"
   }
 }
