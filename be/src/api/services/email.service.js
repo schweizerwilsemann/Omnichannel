@@ -33,6 +33,25 @@ const getEmailData = (action, payload) => {
                 html: Mustache.render(template, view)
             };
         }
+        case EMAIL_ACTIONS.CUSTOMER_VERIFY_MEMBERSHIP: {
+            const template = readTemplate('customerVerifyMembership.html');
+            const fullName = [payload.firstName, payload.lastName]
+                .filter(Boolean)
+                .join(' ')
+                .trim() || 'there';
+
+            const view = {
+                name: fullName,
+                restaurantName: payload.restaurantName || 'our restaurant',
+                verifyUrl: payload.verifyUrl,
+                supportEmail: env.supportEmail || payload.supportEmail || ''
+            };
+
+            return {
+                subject: 'Confirm your membership',
+                html: Mustache.render(template, view)
+            };
+        }
         default:
             throw new Error(`Unsupported email action: ${action}`);
     }

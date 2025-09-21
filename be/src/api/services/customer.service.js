@@ -1,11 +1,17 @@
 import { v4 as uuid } from 'uuid';
+import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import models from '../models/index.js';
 import logger from '../../config/logger.js';
+import env from '../../config/env.js';
+import { sendEmail } from './email.service.js';
+import { safeLoadOrderForEvent } from './order.service.js';
+import { notifyOrderCreated } from './realtime.service.js';
 import {
     MEMBERSHIP_STATUS,
     ORDER_STATUS,
-    KDS_TICKET_STATUS
+    KDS_TICKET_STATUS,
+    EMAIL_ACTIONS
 } from '../utils/common.js';
 
 const {
@@ -19,10 +25,21 @@ const {
     OrderItem,
     KdsTicket,
     RestaurantCustomer,
-    Customer
+    Customer,
+    CustomerVerificationToken
 } = models;
 
+
+const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const TOKEN_SALT_ROUNDS = 10;
+
+const buildVerificationUrl = (verificationId, token) => {
+    const baseUrl = env.app.appUrl.endsWith('/') ? env.app.appUrl : `${env.app.appUrl}/`;
+    return `${baseUrl}customer/membership/verify?verificationId=${verificationId}&token=${token}`;
+};
+
 const resolveSession = async (sessionToken) => {
+
     if (!sessionToken) {
         throw new Error('Session token is required');
     }
@@ -50,6 +67,69 @@ const buildCustomerMeta = (customerPayload = {}) => ({
     phoneNumber: customerPayload.phoneNumber || null,
     membershipNumber: customerPayload.membershipNumber || null
 });
+
+export const getTableDetailsBySlug = async (qrSlug) => {
+    if (!qrSlug) {
+        throw new Error('QR slug is required');
+    }
+
+    const table = await RestaurantTable.findOne({
+        where: { qrSlug },
+        include: [{ model: Restaurant, as: 'restaurant' }]
+    });
+
+    if (!table || !table.restaurant) {
+        return null;
+    }
+
+    const activeSession = await GuestSession.findOne({
+        where: { restaurantTableId: table.id, closedAt: null },
+        order: [['startedAt', 'DESC']]
+    });
+
+    return {
+        qrSlug: table.qrSlug,
+        restaurant: {
+            id: table.restaurant.id,
+            name: table.restaurant.name
+        },
+        table: {
+            id: table.id,
+            name: table.name,
+            capacity: table.capacity,
+            status: table.status
+        },
+        activeSession: activeSession
+            ? {
+                  sessionToken: activeSession.sessionToken,
+                  startedAt: activeSession.startedAt
+              }
+            : null
+    };
+};
+
+export const getActiveSessionByToken = async (sessionToken) => {
+    const session = await resolveSession(sessionToken);
+
+    return {
+        id: session.id,
+        sessionToken: session.sessionToken,
+        restaurantId: session.restaurantId,
+        tableId: session.restaurantTableId,
+        restaurant: session.restaurant
+            ? {
+                  id: session.restaurant.id,
+                  name: session.restaurant.name
+              }
+            : null,
+        table: session.table
+            ? {
+                  id: session.table.id,
+                  name: session.table.name
+              }
+            : null
+    };
+};
 
 const findExistingCustomer = async (lookup, transaction) => {
     const searchConditions = [];
@@ -243,7 +323,8 @@ export const getMenuForSession = async (sessionToken) => {
                 priceCents: item.priceCents,
                 price: item.priceCents / 100,
                 sku: item.sku,
-                prepTimeSeconds: item.prepTimeSeconds
+                prepTimeSeconds: item.prepTimeSeconds,
+                imageUrl: item.imageUrl
             }))
         }))
     };
@@ -373,6 +454,17 @@ export const placeOrderForSession = async (sessionToken, payload) => {
 
         logger.info('Customer order created', { orderId: order.id, sessionToken });
 
+        transaction.afterCommit(() => {
+            (async () => {
+                const adminOrder = await safeLoadOrderForEvent(order.id);
+                if (adminOrder) {
+                    notifyOrderCreated(adminOrder);
+                }
+            })().catch((error) => {
+                logger.warn('Failed to dispatch order.created event', { message: error.message, orderId: order.id });
+            });
+        });
+
         return {
             orderId: order.id,
             status: order.status,
@@ -437,6 +529,184 @@ export const listOrdersForSession = async (sessionToken) => {
                       sequenceNo: latestTicket.sequenceNo
                   }
                 : null
+        };
+    });
+};
+
+
+
+
+
+
+
+
+
+export const requestMembershipVerification = async ({ sessionToken, customer: customerPayload = {} }) => {
+    const session = await resolveSession(sessionToken);
+
+    const normalizedPayload = {
+        firstName: customerPayload.firstName ?? session.customer?.firstName ?? null,
+        lastName: customerPayload.lastName ?? session.customer?.lastName ?? null,
+        email: customerPayload.email ?? session.customer?.email ?? null,
+        phoneNumber: customerPayload.phoneNumber ?? session.customer?.phoneNumber ?? null,
+        membershipNumber: customerPayload.membershipNumber ?? session.customer?.membershipNumber ?? null
+    };
+
+    if (!normalizedPayload.email) {
+        throw new Error('Email is required to request membership verification');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        const { customer, membership } = await upsertCustomer(normalizedPayload, session.restaurantId, transaction);
+
+        const sessionForUpdate = await GuestSession.findByPk(session.id, {
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (sessionForUpdate) {
+            await sessionForUpdate.update(
+                {
+                    customerId: customer.id,
+                    membershipStatus: membership.status,
+                    customerMeta: buildCustomerMeta(normalizedPayload)
+                },
+                { transaction }
+            );
+        }
+
+        await CustomerVerificationToken.update(
+            { usedAt: new Date() },
+            {
+                where: {
+                    customerId: customer.id,
+                    restaurantId: session.restaurantId,
+                    usedAt: null
+                },
+                transaction
+            }
+        );
+
+        const rawToken = uuid();
+        const tokenHash = await bcrypt.hash(rawToken, TOKEN_SALT_ROUNDS);
+        const verification = await CustomerVerificationToken.create(
+            {
+                customerId: customer.id,
+                restaurantId: session.restaurantId,
+                email: normalizedPayload.email,
+                tokenHash,
+                expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS)
+            },
+            { transaction }
+        );
+
+        const restaurantName = session.restaurant?.name || 'our restaurant';
+        const verifyUrl = buildVerificationUrl(verification.id, rawToken);
+
+        transaction.afterCommit(() => {
+            sendEmail(
+                {
+                    firstName: normalizedPayload.firstName || customer.firstName,
+                    lastName: normalizedPayload.lastName || customer.lastName,
+                    restaurantName,
+                    verifyUrl
+                },
+                normalizedPayload.email,
+                EMAIL_ACTIONS.CUSTOMER_VERIFY_MEMBERSHIP
+            ).catch((error) => {
+                logger.warn('Failed to send membership verification email', {
+                    message: error.message,
+                    customerId: customer.id,
+                    restaurantId: session.restaurantId
+                });
+            });
+        });
+
+        return {
+            customerId: customer.id,
+            restaurantId: session.restaurantId,
+            membershipStatus: membership.status,
+            email: normalizedPayload.email,
+            expiresAt: verification.expiresAt
+        };
+    });
+};
+
+export const verifyMembershipToken = async ({ verificationId, token }) => {
+    return sequelize.transaction(async (transaction) => {
+        const record = await CustomerVerificationToken.findOne({
+            where: { id: verificationId },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (!record) {
+            throw new Error('Verification request not found');
+        }
+        if (record.usedAt) {
+            throw new Error('Verification link has already been used');
+        }
+        if (record.expiresAt < new Date()) {
+            throw new Error('Verification link has expired');
+        }
+
+        const tokenValid = await bcrypt.compare(token, record.tokenHash);
+        if (!tokenValid) {
+            throw new Error('Invalid verification token');
+        }
+
+        let membership = await RestaurantCustomer.findOne({
+            where: {
+                restaurantId: record.restaurantId,
+                customerId: record.customerId
+            },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (!membership) {
+            membership = await RestaurantCustomer.create(
+                {
+                    restaurantId: record.restaurantId,
+                    customerId: record.customerId,
+                    status: MEMBERSHIP_STATUS.MEMBER,
+                    joinedAt: new Date()
+                },
+                { transaction }
+            );
+        } else if (membership.status !== MEMBERSHIP_STATUS.MEMBER) {
+            await membership.update(
+                {
+                    status: MEMBERSHIP_STATUS.MEMBER,
+                    joinedAt: membership.joinedAt || new Date()
+                },
+                { transaction }
+            );
+        }
+
+        await record.update(
+            {
+                usedAt: new Date()
+            },
+            { transaction }
+        );
+
+        await GuestSession.update(
+            { membershipStatus: MEMBERSHIP_STATUS.MEMBER },
+            {
+                where: {
+                    customerId: record.customerId,
+                    restaurantId: record.restaurantId,
+                    closedAt: null
+                },
+                transaction
+            }
+        );
+
+        return {
+            customerId: record.customerId,
+            restaurantId: record.restaurantId,
+            membershipStatus: MEMBERSHIP_STATUS.MEMBER
         };
     });
 };
