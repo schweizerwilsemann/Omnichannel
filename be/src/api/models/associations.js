@@ -20,6 +20,7 @@ const setupAssociations = (models) => {
         OrderItem,
         KdsTicket,
         KdsActivityLog,
+        CustomerVerificationToken,
         Notification
     } = models;
 
@@ -66,6 +67,13 @@ const setupAssociations = (models) => {
     Restaurant.hasMany(RestaurantCustomer, { foreignKey: 'restaurant_id', as: 'memberships' });
     RestaurantCustomer.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
 
+    Customer.hasMany(CustomerVerificationToken, { foreignKey: 'customer_id', as: 'verificationTokens' });
+    CustomerVerificationToken.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+
+    Restaurant.hasMany(CustomerVerificationToken, { foreignKey: 'restaurant_id', as: 'verificationTokens' });
+    CustomerVerificationToken.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+
     Customer.hasMany(GuestSession, { foreignKey: 'customer_id', as: 'guestSessions' });
     GuestSession.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
 
@@ -107,3 +115,4 @@ const setupAssociations = (models) => {
 };
 
 export default setupAssociations;
+

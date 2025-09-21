@@ -5,6 +5,7 @@ import adminSessionModel from './adminSession.model.js';
 import adminInvitationModel from './adminInvitation.model.js';
 import restaurantStaffModel from './restaurantStaff.model.js';
 import passwordResetTokenModel from './passwordResetToken.model.js';
+import customerVerificationTokenModel from './customerVerificationToken.model.js';
 import securityEventModel from './securityEvent.model.js';
 import restaurantModel from './restaurant.model.js';
 import restaurantTableModel from './restaurantTable.model.js';
@@ -28,6 +29,7 @@ const models = {
     AdminInvitation: adminInvitationModel(sequelize),
     RestaurantStaff: restaurantStaffModel(sequelize),
     PasswordResetToken: passwordResetTokenModel(sequelize),
+    CustomerVerificationToken: customerVerificationTokenModel(sequelize),
     SecurityEvent: securityEventModel(sequelize),
     Restaurant: restaurantModel(sequelize),
     RestaurantTable: restaurantTableModel(sequelize),
@@ -46,3 +48,4 @@ const models = {
 setupAssociations(models);
 
 export default models;
+
