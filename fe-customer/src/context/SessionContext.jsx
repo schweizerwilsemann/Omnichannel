@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { startSession as startSessionApi } from '../services/session.js';
+import { startSession as startSessionApi, lookupTableBySlug } from '../services/session.js';
 
 const SessionContext = createContext(null);
 
@@ -57,27 +57,99 @@ export const SessionProvider = ({ children }) => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const [ordersVersion, setOrdersVersion] = useState(0);
+    const [tableInfo, setTableInfo] = useState(null);
+    const [tableLoading, setTableLoading] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const refreshTableInfo = useCallback(() => {
+        setRefreshKey((prev) => prev + 1);
+    }, []);
 
     useEffect(() => {
-        if (!qrSlug) {
-            setStatus('error');
-            setError('Missing QR code. Please scan the table QR again.');
-            setSession(null);
-            return;
-        }
+        let cancelled = false;
 
         const stored = loadFromStorage();
-        if (stored && stored.qrSlug === qrSlug) {
-            setSession(stored);
-            setStatus('ready');
-            setError(null);
-        } else {
-            setSession(null);
-            setStatus('needsSetup');
-        }
-    }, [qrSlug]);
 
-    const initializeSession = async (customerPayload) => {
+        if (!qrSlug) {
+            if (stored) {
+                setSession(stored);
+                setStatus('ready');
+                setError(null);
+                setTableInfo((prev) =>
+                    prev || (stored.restaurant || stored.table
+                        ? {
+                              qrSlug: stored.qrSlug || null,
+                              restaurant: stored.restaurant || null,
+                              table: stored.table || null,
+                              activeSession: {
+                                  sessionToken: stored.sessionToken,
+                                  startedAt: stored.startedAt || stored.createdAt || new Date().toISOString()
+                              }
+                          }
+                        : null)
+                );
+            } else {
+                setStatus('error');
+                setError('Missing QR code. Please scan the table QR again.');
+                setSession(null);
+                setTableInfo(null);
+                clearStorage();
+            }
+            setTableLoading(false);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        setStatus('loading');
+        setTableLoading(true);
+        setError(null);
+
+        lookupTableBySlug(qrSlug)
+            .then((response) => {
+                if (cancelled) {
+                    return;
+                }
+                const info = response.data?.data || null;
+                setTableInfo(info);
+
+                const stored = loadFromStorage();
+                if (stored && stored.qrSlug === qrSlug) {
+                    setSession(stored);
+                    setStatus('ready');
+                } else {
+                    setSession(null);
+                    setStatus('needsSetup');
+                }
+                setError(null);
+            })
+            .catch((err) => {
+                if (cancelled) {
+                    return;
+                }
+                const statusCode = err.response?.status;
+                const message =
+                    statusCode === 404
+                        ? `We couldn't find a restaurant table for code "${qrSlug}". Please rescan the QR code at your seat or ask the staff for help.`
+                        : err.response?.data?.message || err.message || 'Unable to validate the table QR code.';
+                setSession(null);
+                setStatus('error');
+                setError(message);
+                setTableInfo(null);
+                clearStorage();
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setTableLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [qrSlug, refreshKey]);
+
+    const initializeSession = useCallback(async (customerPayload) => {
         if (!qrSlug) {
             throw new Error('QR code is required to start a session');
         }
@@ -98,27 +170,45 @@ export const SessionProvider = ({ children }) => {
             setSession(nextSession);
             saveToStorage(nextSession);
             setStatus('ready');
+            setError(null);
+            if (data.table || data.restaurant) {
+                setTableInfo((prev) => ({
+                    qrSlug,
+                    restaurant: data.restaurant || prev?.restaurant || null,
+                    table: data.table || prev?.table || null,
+                    activeSession: {
+                        sessionToken: nextSession.sessionToken,
+                        startedAt: new Date().toISOString()
+                    }
+                }));
+            }
             return nextSession;
         } catch (err) {
             const message = err.response?.data?.message || err.message || 'Unable to start session';
             setError(message);
-            setStatus('needsSetup');
+            if (err.response?.status === 404) {
+                setStatus('error');
+                setTableInfo(null);
+            } else {
+                setStatus('needsSetup');
+            }
             throw err;
         } finally {
             setLoading(false);
         }
-    };
+    }, [qrSlug]);
 
-    const clearSession = () => {
+    const clearSession = useCallback(() => {
         clearStorage();
         setSession(null);
-        setStatus('needsSetup');
         setOrdersVersion(0);
-    };
+        setError(null);
+        setStatus(tableInfo ? 'needsSetup' : 'idle');
+    }, [tableInfo]);
 
-    const markOrdersDirty = () => {
+    const markOrdersDirty = useCallback(() => {
         setOrdersVersion((prev) => prev + 1);
-    };
+    }, []);
 
     const value = {
         session,
@@ -126,10 +216,13 @@ export const SessionProvider = ({ children }) => {
         error,
         loading,
         qrSlug,
+        tableInfo,
+        tableLoading,
         initializeSession,
         clearSession,
         ordersVersion,
-        markOrdersDirty
+        markOrdersDirty,
+        refreshTableInfo
     };
 
     return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

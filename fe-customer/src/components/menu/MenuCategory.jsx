@@ -1,6 +1,5 @@
-import { Col, Row, Button, Badge } from 'react-bootstrap';
-
-const formatPrice = (cents) => `₫${(cents / 100).toFixed(2)}`;
+const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&h=600&fit=crop&crop=center';
 
 const MenuCategory = ({ category, onAdd }) => {
     if (!category.items || category.items.length === 0) {
@@ -8,31 +7,36 @@ const MenuCategory = ({ category, onAdd }) => {
     }
 
     return (
-        <section className="menu-category">
-            <div className="d-flex align-items-center justify-content-between mb-3">
-                <h4 className="mb-0">{category.name}</h4>
-                <Badge bg="light" text="dark">
-                    {category.items.length} items
-                </Badge>
+        <section className="menu-category" id={`category-${category.id}`}>
+            <div className="menu-category__header">
+                <div>
+                    <p className="menu-category__eyebrow">fan favorite</p>
+                    <h2 className="menu-category__title">{category.name}</h2>
+                </div>
+                <span className="menu-category__count">{category.items.length} picks</span>
             </div>
-            <Row className="g-3">
+            <div className="menu-category__grid">
                 {category.items.map((item) => (
-                    <Col xs={12} key={item.id}>
-                        <div className="menu-item-card">
-                            <div className="d-flex justify-content-between align-items-start gap-3">
-                                <div>
-                                    <h5 className="mb-1">{item.name}</h5>
-                                    <div className="text-primary fw-semibold">{formatPrice(item.priceCents)}</div>
-                                    {item.description && <p className="text-muted small mb-0 mt-2">{item.description}</p>}
-                                </div>
-                                <Button variant="primary" onClick={() => onAdd(item)}>
-                                    Add
-                                </Button>
-                            </div>
+                    <article key={item.id} className="menu-item-card">
+                        <div className="menu-item-card__image-wrapper">
+                            <img
+                                src={item.imageUrl || FALLBACK_IMAGE}
+                                alt={item.name}
+                                loading="lazy"
+                                className="menu-item-card__image"
+                            />
+                            <button type="button" className="menu-item-card__add" onClick={() => onAdd(item)}>
+                                Add
+                            </button>
                         </div>
-                    </Col>
+                        <div className="menu-item-card__body">
+                            <span className="menu-item-card__price">{formatPrice(item.priceCents)}</span>
+                            <h3 className="menu-item-card__name">{item.name}</h3>
+                            {item.description && <p className="menu-item-card__description">{item.description}</p>}
+                        </div>
+                    </article>
                 ))}
-            </Row>
+            </div>
         </section>
     );
 };

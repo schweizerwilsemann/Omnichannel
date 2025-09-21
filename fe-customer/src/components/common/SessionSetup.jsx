@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Spinner } from 'react-bootstrap';
+import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { useSession } from '../../context/SessionContext.jsx';
 
@@ -14,8 +14,16 @@ const defaultForm = {
 };
 
 const SessionSetup = () => {
-    const { initializeSession, loading, error, qrSlug } = useSession();
+    const { session, initializeSession, loading, error, qrSlug, tableInfo, tableLoading } = useSession();
     const [form, setForm] = useState(defaultForm);
+
+    const restaurantName = tableInfo?.restaurant?.name || session?.restaurant?.name || null;
+    const tableName = tableInfo?.table?.name || session?.table?.name || qrSlug || 'Unknown';
+    const disableInputs = loading || tableLoading;
+    const activeSessionToken = tableInfo?.activeSession?.sessionToken;
+    const hasDifferentActiveSession = Boolean(
+        activeSessionToken && (!session || activeSessionToken !== session.sessionToken)
+    );
 
     const handleChange = (event) => {
         const { name, value, type, checked } = event.target;
@@ -27,6 +35,9 @@ const SessionSetup = () => {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+        if (disableInputs) {
+            return;
+        }
         try {
             await initializeSession(form);
             toast.success('Session started. Enjoy your meal!');
@@ -37,6 +48,9 @@ const SessionSetup = () => {
     };
 
     const handleSkip = async () => {
+        if (disableInputs) {
+            return;
+        }
         try {
             await initializeSession();
             toast.success('Session ready. Browse the menu!');
@@ -51,9 +65,21 @@ const SessionSetup = () => {
             <Card className="w-100" style={{ maxWidth: 420 }}>
                 <Card.Body className="d-flex flex-column gap-3">
                     <div>
-                        <h2 className="mb-1">Welcome</h2>
-                        <p className="text-muted mb-0">Scan confirmed for table: <strong>{qrSlug || 'Unknown'}</strong></p>
+                        <h2 className="mb-1">
+                            Welcome{restaurantName ? ` to ${restaurantName}` : ''}
+                        </h2>
+                        <p className="text-muted mb-0">
+                            {tableLoading
+                                ? 'Checking your table details...'
+                                : `You are checking in for table ${tableName}.`}
+                        </p>
                     </div>
+                    {hasDifferentActiveSession && (
+                        <Alert variant="warning" className="mb-0">
+                            This table already has an active order open. Let the staff know if this should be cleared
+                            before you continue.
+                        </Alert>
+                    )}
                     <Form onSubmit={handleSubmit} className="d-flex flex-column gap-3">
                         <Form.Group controlId="firstName">
                             <Form.Label>First name</Form.Label>
@@ -63,6 +89,7 @@ const SessionSetup = () => {
                                 value={form.firstName}
                                 placeholder="Optional"
                                 onChange={handleChange}
+                                disabled={disableInputs}
                             />
                         </Form.Group>
                         <Form.Group controlId="lastName">
@@ -73,6 +100,7 @@ const SessionSetup = () => {
                                 value={form.lastName}
                                 placeholder="Optional"
                                 onChange={handleChange}
+                                disabled={disableInputs}
                             />
                         </Form.Group>
                         <Form.Group controlId="email">
@@ -83,6 +111,7 @@ const SessionSetup = () => {
                                 value={form.email}
                                 placeholder="Optional"
                                 onChange={handleChange}
+                                disabled={disableInputs}
                             />
                         </Form.Group>
                         <Form.Group controlId="phoneNumber">
@@ -93,6 +122,7 @@ const SessionSetup = () => {
                                 value={form.phoneNumber}
                                 placeholder="Optional"
                                 onChange={handleChange}
+                                disabled={disableInputs}
                             />
                         </Form.Group>
                         <Form.Group controlId="membershipNumber">
@@ -103,6 +133,7 @@ const SessionSetup = () => {
                                 value={form.membershipNumber}
                                 placeholder="Enter if you have one"
                                 onChange={handleChange}
+                                disabled={disableInputs}
                             />
                         </Form.Group>
                         <Form.Check
@@ -112,6 +143,7 @@ const SessionSetup = () => {
                             checked={form.joinLoyalty}
                             label="Join the restaurant loyalty program"
                             onChange={handleChange}
+                            disabled={disableInputs}
                         />
                         <Form.Check
                             type="checkbox"
@@ -120,8 +152,9 @@ const SessionSetup = () => {
                             checked={form.isMember}
                             label="I am already a member here"
                             onChange={handleChange}
+                            disabled={disableInputs}
                         />
-                        <Button type="submit" disabled={loading} className="w-100">
+                        <Button type="submit" disabled={disableInputs} className="w-100">
                             {loading ? (
                                 <>
                                     <Spinner animation="border" size="sm" className="me-2" />
@@ -131,11 +164,17 @@ const SessionSetup = () => {
                                 'Start ordering'
                             )}
                         </Button>
-                        <Button variant="outline-secondary" type="button" disabled={loading} onClick={handleSkip} className="w-100">
+                        <Button
+                            variant="outline-secondary"
+                            type="button"
+                            disabled={disableInputs}
+                            onClick={handleSkip}
+                            className="w-100"
+                        >
                             Skip and continue
                         </Button>
                     </Form>
-                    {error && <div className="text-danger small text-center">{error}</div>}
+                    {error && <Alert variant="danger" className="mb-0 text-center">{error}</Alert>}
                 </Card.Body>
             </Card>
         </div>

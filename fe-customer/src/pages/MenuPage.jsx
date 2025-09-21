@@ -1,75 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Spinner } from 'react-bootstrap';
+import { Alert, Button, Spinner, Modal, Form } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSession } from '../context/SessionContext.jsx';
-import { fetchMenu, placeCustomerOrder } from '../services/session.js';
+import { useCart } from '../context/CartContext.jsx';
+import { fetchMenu, requestMembershipVerification } from '../services/session.js';
 import MenuCategory from '../components/menu/MenuCategory.jsx';
 
-const formatPrice = (cents) => `₫${(cents / 100).toFixed(2)}`;
-
-const CartSummary = ({ items, totalCents, onIncrement, onDecrement, onClear, onCheckout, placing }) => {
-    if (items.length === 0) {
-        return (
-            <Card className="shadow-sm">
-                <Card.Body className="text-center text-muted">Your cart is empty. Add items to place an order.</Card.Body>
-            </Card>
-        );
-    }
-
-    return (
-        <Card className="shadow-sm">
-            <Card.Body className="d-flex flex-column gap-3">
-                <div className="d-flex justify-content-between align-items-center">
-                    <h5 className="mb-0">Your order</h5>
-                    <Button variant="link" size="sm" className="text-danger" onClick={onClear}>
-                        Clear
-                    </Button>
-                </div>
-                <div className="d-flex flex-column gap-2">
-                    {items.map((item) => (
-                        <div key={item.id} className="d-flex justify-content-between align-items-center">
-                            <div>
-                                <div className="fw-semibold">{item.name}</div>
-                                <div className="text-muted small">{formatPrice(item.priceCents)}</div>
-                            </div>
-                            <div className="d-flex align-items-center gap-2">
-                                <Button variant="outline-secondary" size="sm" onClick={() => onDecrement(item.id)}>
-                                    -
-                                </Button>
-                                <span className="fw-semibold">{item.quantity}</span>
-                                <Button variant="outline-secondary" size="sm" onClick={() => onIncrement(item.id)}>
-                                    +
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="d-flex justify-content-between align-items-center">
-                    <span className="fw-semibold">Total</span>
-                    <span className="fw-bold fs-5">{formatPrice(totalCents)}</span>
-                </div>
-                <Button onClick={onCheckout} disabled={placing}>
-                    {placing ? (
-                        <>
-                            <Spinner animation="border" size="sm" className="me-2" />
-                            Placing order...
-                        </>
-                    ) : (
-                        'Place order'
-                    )}
-                </Button>
-            </Card.Body>
-        </Card>
-    );
-};
+const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
 
 const MenuPage = () => {
-    const { session, markOrdersDirty } = useSession();
-    const [menuData, setMenuData] = useState({ categories: [] });
+    const { session } = useSession();
+    const { addItem, cartQuantity, totalCents } = useCart();
+    const [menuData, setMenuData] = useState({ categories: [], session: null });
     const [loadingMenu, setLoadingMenu] = useState(false);
     const [menuError, setMenuError] = useState(null);
-    const [cart, setCart] = useState({});
-    const [placingOrder, setPlacingOrder] = useState(false);
+    const navigate = useNavigate();
+
+    const [showMembershipModal, setShowMembershipModal] = useState(false);
+    const [membershipForm, setMembershipForm] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phoneNumber: ''
+    });
+    const [membershipSubmitting, setMembershipSubmitting] = useState(false);
+    const [membershipError, setMembershipError] = useState(null);
+    const isMember = session?.membership?.status === 'MEMBER';
+    const membershipStatus = session?.membership?.status || 'GUEST';
 
     const sessionToken = session?.sessionToken;
 
@@ -82,7 +40,8 @@ const MenuPage = () => {
         setMenuError(null);
         try {
             const response = await fetchMenu(sessionToken);
-            setMenuData(response.data?.data || { categories: [] });
+            const payload = response.data?.data || { categories: [], session: null };
+            setMenuData(payload);
         } catch (error) {
             const message = error.response?.data?.message || error.message || 'Unable to load menu';
             setMenuError(message);
@@ -95,131 +54,239 @@ const MenuPage = () => {
         loadMenu();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionToken]);
-
-    const addToCart = (menuItem) => {
-        setCart((prev) => {
-            const existing = prev[menuItem.id];
-            const quantity = existing ? existing.quantity + 1 : 1;
-            return {
-                ...prev,
-                [menuItem.id]: {
-                    id: menuItem.id,
-                    name: menuItem.name,
-                    priceCents: menuItem.priceCents,
-                    quantity
-                }
-            };
+    useEffect(() => {
+        if (!showMembershipModal) {
+            setMembershipError(null);
+            return;
+        }
+        setMembershipForm({
+            firstName: session?.customer?.firstName || '',
+            lastName: session?.customer?.lastName || '',
+            email: session?.customer?.email || '',
+            phoneNumber: session?.customer?.phoneNumber || ''
         });
+    }, [showMembershipModal, session]);
+    const handleMembershipChange = (event) => {
+        const { name, value } = event.target;
+        setMembershipForm((prev) => ({
+            ...prev,
+            [name]: value
+        }));
     };
 
-    const incrementItem = (menuItemId) => {
-        const menuItem = menuData.categories
-            .flatMap((category) => category.items || [])
-            .find((item) => item.id === menuItemId);
+    const handleMembershipClose = () => {
+        setShowMembershipModal(false);
+        setMembershipError(null);
+    };
 
-        if (menuItem) {
-            addToCart(menuItem);
+    const handleMembershipSubmit = async (event) => {
+        event.preventDefault();
+        if (!sessionToken) {
+            setMembershipError('Session expired. Please refresh the page.');
+            return;
+        }
+        if (!membershipForm.email) {
+            setMembershipError('Email is required to join the membership.');
+            return;
+        }
+        try {
+            setMembershipSubmitting(true);
+            setMembershipError(null);
+            await requestMembershipVerification({
+                sessionToken,
+                customer: {
+                    firstName: membershipForm.firstName || null,
+                    lastName: membershipForm.lastName || null,
+                    email: membershipForm.email,
+                    phoneNumber: membershipForm.phoneNumber || null
+                }
+            });
+            toast.success('Check your email to verify your membership');
+            setShowMembershipModal(false);
+        } catch (error) {
+            const message = error.response?.data?.message || error.message || 'Unable to process membership request';
+            setMembershipError(message);
+        } finally {
+            setMembershipSubmitting(false);
         }
     };
 
-    const decrementItem = (menuItemId) => {
-        setCart((prev) => {
-            const existing = prev[menuItemId];
-            if (!existing) {
-                return prev;
-            }
-            const nextQuantity = existing.quantity - 1;
-            if (nextQuantity <= 0) {
-                const { [menuItemId]: _removed, ...rest } = prev;
-                return rest;
-            }
-            return {
-                ...prev,
-                [menuItemId]: {
-                    ...existing,
-                    quantity: nextQuantity
-                }
-            };
-        });
+    const handleMembershipOpen = () => {
+        setShowMembershipModal(true);
     };
 
-    const clearCart = () => setCart({});
 
-    const cartItems = useMemo(() => Object.values(cart), [cart]);
-    const cartTotalCents = useMemo(
-        () => cartItems.reduce((total, item) => total + item.priceCents * item.quantity, 0),
-        [cartItems]
+
+    const handleAddToCart = (menuItem) => {
+        addItem(menuItem);
+        toast.success(`${menuItem.name} added to cart`, { toastId: `add-${menuItem.id}` });
+    };
+
+    const activeCategories = useMemo(
+        () => (menuData.categories || []).filter((category) => Array.isArray(category.items) && category.items.length > 0),
+        [menuData.categories]
     );
 
-    const handlePlaceOrder = async () => {
-        if (!sessionToken) {
-            toast.error('Session expired. Please refresh the page.');
-            return;
-        }
-        if (cartItems.length === 0) {
-            toast.info('Add items to the cart before placing an order.');
-            return;
-        }
+    const quickFilters = useMemo(() => activeCategories.slice(0, 6), [activeCategories]);
 
-        try {
-            setPlacingOrder(true);
-            await placeCustomerOrder({
-                sessionToken,
-                items: cartItems.map((item) => ({
-                    menuItemId: item.id,
-                    quantity: item.quantity
-                }))
-            });
-            toast.success('Order placed! Check the Orders tab for updates.');
-            clearCart();
-            markOrdersDirty();
-        } catch (error) {
-            const message = error.response?.data?.message || error.message || 'Unable to place order';
-            toast.error(message);
-        } finally {
-            setPlacingOrder(false);
+    const scrollToCategory = (categoryId) => {
+        const element = document.getElementById(`category-${categoryId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
 
     return (
-        <div className="d-flex flex-column gap-4">
-            <div className="d-flex justify-content-between align-items-center">
-                <div>
-                    <h2 className="mb-0">Menu</h2>
-                    <p className="text-muted mb-0">Select your favorites and send your order to the kitchen.</p>
+        <div className="menu-page">
+            <section className="menu-hero gradient-card">
+                <div className="menu-hero__content">
+                    <p className="menu-hero__eyebrow">welcome back{session?.customer?.firstName ? `, ${session.customer.firstName}` : ''}</p>
+                    <h1 className="menu-hero__title">Curated bites made for vibey nights.</h1>
+                    <p className="menu-hero__subtitle">
+                        Order straight from your table at {session?.restaurant?.name || 'our pop-up'}. Tap a dish to drop it into your cart and we
+                        will ping you when it is ready.
+                    </p>
+                    <p className="menu-hero__highlight">
+                        {isMember
+                            ? 'You already have loyalty perks activated for this table.'
+                            : 'Join the membership to collect points and unlock little surprises.'}
+                    </p>
+                    <div className="menu-hero__actions">
+                        <Button variant="light" size="sm" onClick={loadMenu} disabled={loadingMenu}>
+                            {loadingMenu ? 'Refreshing...' : 'Refresh menu'}
+                        </Button>
+                        {!isMember && (
+                            <Button variant="outline-light" size="sm" onClick={handleMembershipOpen}>
+                                Join membership
+                            </Button>
+                        )}
+                        <Button variant="outline-light" size="sm" onClick={() => navigate('/orders')}>
+                            Track orders
+                        </Button>
+                    </div>
                 </div>
-                <Button variant="outline-secondary" size="sm" onClick={loadMenu} disabled={loadingMenu}>
-                    {loadingMenu ? 'Refreshing...' : 'Refresh'}
-                </Button>
-            </div>
+            </section>
 
-            {menuError && <Alert variant="danger">{menuError}</Alert>}
-
-            {loadingMenu ? (
-                <div className="d-flex justify-content-center py-5">
-                    <Spinner animation="border" />
+            {quickFilters.length > 0 && (
+                <div className="menu-quick-filters">
+                    <span className="menu-quick-filters__label">Get to the good stuff</span>
+                    <div className="menu-quick-filters__chips">
+                        {quickFilters.map((category) => (
+                            <button
+                                key={category.id}
+                                type="button"
+                                className="menu-quick-filters__chip"
+                                onClick={() => scrollToCategory(category.id)}
+                            >
+                                {category.name}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            ) : menuData.categories.length === 0 ? (
-                <Card className="shadow-sm">
-                    <Card.Body className="text-center text-muted">Menu is not available right now. Please check back soon.</Card.Body>
-                </Card>
-            ) : (
-                menuData.categories.map((category) => (
-                    <MenuCategory key={category.id} category={category} onAdd={addToCart} />
-                ))
             )}
 
-            <CartSummary
-                items={cartItems}
-                totalCents={cartTotalCents}
-                onIncrement={incrementItem}
-                onDecrement={decrementItem}
-                onClear={clearCart}
-                onCheckout={handlePlaceOrder}
-                placing={placingOrder}
-            />
+            <section className="menu-section">
+                {menuError && <Alert variant="danger">{menuError}</Alert>}
+
+                {loadingMenu ? (
+                    <div className="d-flex justify-content-center py-5">
+                        <Spinner animation="border" />
+                    </div>
+                ) : activeCategories.length === 0 ? (
+                    <div className="empty-state-card">
+                        <p className="mb-0">Menu is not available right now. Check back in a bit.</p>
+                    </div>
+                ) : (
+                    activeCategories.map((category) => (
+                        <MenuCategory key={category.id} category={category} onAdd={handleAddToCart} />
+                    ))
+                )}
+            </section>
+
+            {cartQuantity > 0 && (
+                <button type="button" className="menu-floating-cart" onClick={() => navigate('/checkout')}>
+                    <div className="menu-floating-cart__summary">
+                        <span className="menu-floating-cart__count">{cartQuantity} item{cartQuantity > 1 ? 's' : ''}</span>
+                        <span className="menu-floating-cart__total">{formatPrice(totalCents)}</span>
+                    </div>
+                    <span className="menu-floating-cart__cta">Review & checkout</span>
+                </button>
+            )}
+            <Modal show={showMembershipModal} onHide={handleMembershipClose} centered>
+                <Form onSubmit={handleMembershipSubmit}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Join the loyalty crew</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body className="d-flex flex-column gap-3">
+                        <p className="text-muted mb-0">
+                            {`Current status: ${membershipStatus}.`}
+                        </p>
+                        <p className="text-muted">We will email you a quick verification link so you can start earning points.</p>
+                        {membershipError && (
+                            <Alert variant="danger" className="mb-0">
+                                {membershipError}
+                            </Alert>
+                        )}
+                        <Form.Group controlId="membershipFirstName">
+                            <Form.Label>First name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="firstName"
+                                placeholder="Jamie"
+                                value={membershipForm.firstName}
+                                onChange={handleMembershipChange}
+                                autoComplete="given-name"
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="membershipLastName">
+                            <Form.Label>Last name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="lastName"
+                                placeholder="Rivera"
+                                value={membershipForm.lastName}
+                                onChange={handleMembershipChange}
+                                autoComplete="family-name"
+                            />
+                        </Form.Group>
+                        <Form.Group controlId="membershipEmail">
+                            <Form.Label>Email</Form.Label>
+                            <Form.Control
+                                type="email"
+                                name="email"
+                                placeholder="you@example.com"
+                                value={membershipForm.email}
+                                onChange={handleMembershipChange}
+                                required
+                                autoComplete="email"
+                            />
+                            <Form.Text className="text-muted">We will send the verification link to this inbox.</Form.Text>
+                        </Form.Group>
+                        <Form.Group controlId="membershipPhone">
+                            <Form.Label>Phone number</Form.Label>
+                            <Form.Control
+                                type="tel"
+                                name="phoneNumber"
+                                placeholder="09xx xxx xxxx"
+                                value={membershipForm.phoneNumber}
+                                onChange={handleMembershipChange}
+                                autoComplete="tel"
+                            />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="outline-secondary" onClick={handleMembershipClose} disabled={membershipSubmitting}>
+                            Close
+                        </Button>
+                        <Button type="submit" disabled={membershipSubmitting}>
+                            {membershipSubmitting ? 'Sending…' : 'Send verification email'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
         </div>
     );
 };
 
 export default MenuPage;
+
