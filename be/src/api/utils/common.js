@@ -5,6 +5,7 @@ export const TABLES = {
     ADMIN_INVITATIONS: 'admin_invitations',
     RESTAURANT_STAFF: 'restaurant_staff',
     PASSWORD_RESET_TOKENS: 'password_reset_tokens',
+    CUSTOMER_VERIFICATION_TOKENS: 'customer_verification_tokens',
     SECURITY_EVENTS: 'security_events',
     RESTAURANTS: 'restaurants',
     CUSTOMERS: 'customers',
@@ -39,7 +40,7 @@ export const KDS_ACTIONS = Object.freeze({ ACCEPT: 'ACCEPT', MARK_READY: 'MARK_R
 export const ACTOR_TYPE = Object.freeze({ USER: 'USER', AUTO: 'AUTO' });
 export const NOTIFICATION_STATUS = Object.freeze({ PENDING: 'PENDING', SENT: 'SENT', FAILED: 'FAILED' });
 export const NOTIFICATION_CHANNEL = Object.freeze({ PUSH: 'PUSH', EMAIL: 'EMAIL', SMS: 'SMS' });
-export const EMAIL_ACTIONS = Object.freeze({ ACCOUNT_CREATED: 'account-created' });
+export const EMAIL_ACTIONS = Object.freeze({ ACCOUNT_CREATED: 'account-created', CUSTOMER_VERIFY_MEMBERSHIP: 'customer-verify-membership' });
 export const RECIPIENT_TYPE = Object.freeze({ CUSTOMER: 'CUSTOMER', ADMIN: 'ADMIN' });
 export const SECURITY_EVENT_TYPES = Object.freeze({
     LOGIN_SUCCESS: 'LOGIN_SUCCESS',
@@ -49,3 +50,4 @@ export const SECURITY_EVENT_TYPES = Object.freeze({
     TOKEN_REVOKED: 'TOKEN_REVOKED'
 });
 export const INVITATION_STATUS = Object.freeze({ PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', EXPIRED: 'EXPIRED', REVOKED: 'REVOKED' });
+

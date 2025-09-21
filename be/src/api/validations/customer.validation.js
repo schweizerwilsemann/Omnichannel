@@ -33,3 +33,24 @@ export const placeOrderSchema = Joi.object({
         .required(),
     specialRequest: Joi.string().max(1000).allow(null, '').optional()
 });
+
+export const membershipRegistrationSchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    customer: Joi.object({
+        firstName: Joi.string().max(80).required(),
+        lastName: Joi.string().max(80).allow(null, ''),
+        email: Joi.string().email().required(),
+        phoneNumber: Joi.string().max(20).allow(null, ''),
+        membershipNumber: Joi.string().max(80).allow(null, '')
+    })
+        .required()
+});
+
+export const membershipVerifySchema = Joi.object({
+    verificationId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    token: Joi.string().min(12).max(255).required()
+});
+export const qrSlugQuerySchema = Joi.object({
+    qrSlug: Joi.string().trim().required()
+});
+
