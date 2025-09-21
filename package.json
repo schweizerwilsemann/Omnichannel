@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "workspaces": [
     "be",
-    "fe",
+    "fe-administrator",
     "fe-customer"
   ],
   "scripts": {
     "install:be": "pnpm --filter ./be install",
-    "install:fe": "pnpm --filter ./fe install",
+    "install:fe-administrator": "pnpm --filter ./fe-administrator install",
     "install:fe-customer": "pnpm --filter ./fe-customer install",
     "start:fe-customer": "pnpm --filter ./fe-customer run start",
     "build:fe-customer": "pnpm --filter ./fe-customer run build",

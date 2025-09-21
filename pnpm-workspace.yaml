@@ -1,6 +1,6 @@
 packages:
   - be
-  - fe
+  - fe-administrator
   - fe-customer
   - minio
 

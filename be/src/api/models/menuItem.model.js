@@ -43,6 +43,11 @@ const menuItemModel = (sequelize) =>
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 field: 'prep_time_seconds'
+            },
+            imageUrl: {
+                type: DataTypes.STRING(500),
+                allowNull: true,
+                field: 'image_url'
             }
         },
         {
