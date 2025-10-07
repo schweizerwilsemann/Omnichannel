@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Button, Spinner } from 'react-bootstrap';
+import { useEffect, useState } from 'react';
+import { Button, Spinner, Form } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext.jsx';
@@ -12,10 +12,26 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9c
 const CheckoutPage = () => {
     const navigate = useNavigate();
     const { cartItems, cartQuantity, totalCents, incrementItem, decrementItem, clearCart } = useCart();
-    const { session, markOrdersDirty } = useSession();
+    const { session, markOrdersDirty, updateSession } = useSession();
     const [placingOrder, setPlacingOrder] = useState(false);
+    const discountBalanceCents = session?.membership?.discountBalanceCents ?? 0;
+    const loyaltyPoints = session?.membership?.loyaltyPoints ?? 0;
+    const [useDiscount, setUseDiscount] = useState(discountBalanceCents > 0);
+    const discountToApply = useDiscount ? Math.min(discountBalanceCents, totalCents) : 0;
+    const finalTotalCents = Math.max(totalCents - discountToApply, 0);
+    useEffect(() => {
+        if (discountBalanceCents === 0 && useDiscount) {
+            setUseDiscount(false);
+        }
+    }, [discountBalanceCents, useDiscount]);
+
+
 
     const handlePlaceOrder = async () => {
+        if (session?.membershipPending) {
+            toast.info('Please verify your email to activate membership before placing an order.');
+            return;
+        }
         if (!session?.sessionToken) {
             toast.error('Session expired. Please refresh the page.');
             return;
@@ -27,11 +43,25 @@ const CheckoutPage = () => {
 
         try {
             setPlacingOrder(true);
-            await placeCustomerOrder({
+            const response = await placeCustomerOrder({
                 sessionToken: session.sessionToken,
-                items: cartItems.map((item) => ({ menuItemId: item.id, quantity: item.quantity }))
+                items: cartItems.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
+                applyLoyaltyDiscount: useDiscount && discountBalanceCents > 0
             });
-            toast.success('Order placed! We will keep you posted.');
+            const payload = response.data?.data;
+            if (payload?.membership) {
+                updateSession({ membership: payload.membership });
+            }
+            const discountAppliedCents = payload?.discountAppliedCents ?? 0;
+            const earnedPoints = payload?.earnedLoyaltyPoints ?? 0;
+            const messageParts = ['Order placed! We will keep you posted.'];
+            if (discountAppliedCents > 0) {
+                messageParts.push(`We applied ${formatPrice(discountAppliedCents)} from your loyalty bank.`);
+            }
+            if (earnedPoints > 0) {
+                messageParts.push(`You earned ${earnedPoints} point${earnedPoints === 1 ? '' : 's'}.`);
+            }
+            toast.success(messageParts.join(' '));
             clearCart();
             markOrdersDirty();
             navigate('/orders');
@@ -111,9 +141,33 @@ const CheckoutPage = () => {
                                 <span>Items</span>
                                 <span>{cartQuantity}</span>
                             </div>
-                            <div className="checkout-summary__row checkout-summary__row--total">
-                                <span>Total</span>
+                            <div className="checkout-summary__row">
+                                <span>Subtotal</span>
                                 <span>{formatPrice(totalCents)}</span>
+                            </div>
+                            {discountBalanceCents > 0 && (
+                                <div className="checkout-summary__row flex-column align-items-start">
+                                    <Form.Check
+                                        type="switch"
+                                        id="apply-loyalty-discount"
+                                        label={`Apply loyalty discount (banked)`}
+                                        checked={useDiscount}
+                                        onChange={(event) => setUseDiscount(event.target.checked)}
+                                    />
+                                    {loyaltyPoints > 0 && (
+                                        <span className="text-muted small">{loyaltyPoints} point{loyaltyPoints === 1 ? '' : 's'} available</span>
+                                    )}
+                                </div>
+                            )}
+                            {discountToApply > 0 && (
+                                <div className="checkout-summary__row">
+                                    <span>Discount</span>
+                                    <span>-{formatPrice(discountToApply)}</span>
+                                </div>
+                            )}
+                            <div className="checkout-summary__row checkout-summary__row--total">
+                                <span>Total due</span>
+                                <span>{formatPrice(finalTotalCents)}</span>
                             </div>
                         </div>
 
