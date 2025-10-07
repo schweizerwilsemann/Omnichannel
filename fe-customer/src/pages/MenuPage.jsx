@@ -4,13 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSession } from '../context/SessionContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
-import { fetchMenu, requestMembershipVerification } from '../services/session.js';
+import { fetchMenu, requestMembershipVerification, claimLoyaltyPoints } from '../services/session.js';
 import MenuCategory from '../components/menu/MenuCategory.jsx';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
 
 const MenuPage = () => {
-    const { session } = useSession();
+    const { session, updateSession, loyaltyPointValueCents } = useSession();
     const { addItem, cartQuantity, totalCents } = useCart();
     const [menuData, setMenuData] = useState({ categories: [], session: null });
     const [loadingMenu, setLoadingMenu] = useState(false);
@@ -28,6 +28,17 @@ const MenuPage = () => {
     const [membershipError, setMembershipError] = useState(null);
     const isMember = session?.membership?.status === 'MEMBER';
     const membershipStatus = session?.membership?.status || 'GUEST';
+
+    // Claim / loyalty UI state
+    const [showClaimModal, setShowClaimModal] = useState(false);
+    const [claimPointsValue, setClaimPointsValue] = useState('');
+    const [claimSubmitting, setClaimSubmitting] = useState(false);
+    const [claimError, setClaimError] = useState(null);
+
+    // Derived loyalty values
+    const loyaltyPoints = session?.membership?.loyaltyPoints || 0;
+    const discountBalanceCents = session?.membership?.discountBalanceCents || 0;
+    const pointValueCents = loyaltyPointValueCents || 10;
 
     const sessionToken = session?.sessionToken;
 
@@ -92,7 +103,7 @@ const MenuPage = () => {
         try {
             setMembershipSubmitting(true);
             setMembershipError(null);
-            await requestMembershipVerification({
+            const response = await requestMembershipVerification({
                 sessionToken,
                 customer: {
                     firstName: membershipForm.firstName || null,
@@ -101,6 +112,11 @@ const MenuPage = () => {
                     phoneNumber: membershipForm.phoneNumber || null
                 }
             });
+            const payload = response.data?.data;
+            // flag local session as pending verification so checkout can be blocked until confirmed
+            if (payload && payload.expiresAt && payload.membershipStatus !== 'MEMBER') {
+                updateSession({ membershipPending: true });
+            }
             toast.success('Check your email to verify your membership');
             setShowMembershipModal(false);
         } catch (error) {
@@ -116,6 +132,69 @@ const MenuPage = () => {
     };
 
 
+
+    const handleClaimOpen = () => {
+        if (!sessionToken) {
+            toast.error('Session expired. Please refresh the page.');
+            return;
+        }
+        setClaimError(null);
+        setClaimPointsValue(loyaltyPoints > 0 ? String(loyaltyPoints) : '');
+        setShowClaimModal(true);
+    };
+
+    const handleClaimClose = () => {
+        setShowClaimModal(false);
+        setClaimError(null);
+    };
+
+    const handleClaimChange = (event) => {
+        setClaimPointsValue(event.target.value);
+    };
+
+    const handleClaimSubmit = async (event) => {
+        event.preventDefault();
+        if (!sessionToken) {
+            setClaimError('Session expired. Please refresh the page.');
+            return;
+        }
+
+        const parsedPoints = parseInt(claimPointsValue, 10);
+        if (Number.isNaN(parsedPoints) || parsedPoints <= 0) {
+            setClaimError('Enter how many points you want to convert.');
+            return;
+        }
+        if (parsedPoints > loyaltyPoints) {
+            setClaimError('You do not have that many points to claim.');
+            return;
+        }
+
+        try {
+            setClaimSubmitting(true);
+            setClaimError(null);
+            const response = await claimLoyaltyPoints({
+                sessionToken,
+                points: parsedPoints
+            });
+            const payload = response.data?.data;
+            if (payload) {
+                updateSession({
+                    membership: {
+                        loyaltyPoints: payload.loyaltyPoints,
+                        discountBalanceCents: payload.discountBalanceCents
+                    }
+                });
+            }
+            toast.success(`Converted ${parsedPoints} point${parsedPoints === 1 ? '' : 's'} into a discount for your next visit.`);
+            setClaimPointsValue('');
+            setShowClaimModal(false);
+        } catch (error) {
+            const message = error.response?.data?.message || error.message || 'Unable to claim points right now.';
+            setClaimError(message);
+        } finally {
+            setClaimSubmitting(false);
+        }
+    };
 
     const handleAddToCart = (menuItem) => {
         addItem(menuItem);
@@ -183,6 +262,49 @@ const MenuPage = () => {
                         ))}
                     </div>
                 </div>
+            )}
+
+            {sessionToken && (
+                <section className="card shadow-sm mb-4 p-3">
+                    <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                        <div>
+                            <h2 className="h5 mb-1">Loyalty perks</h2>
+                            <p className="text-muted mb-0">
+                                Status: {membershipStatus}. Each point converts to {formatPrice(pointValueCents)} in discount.
+                            </p>
+                        </div>
+                        <div className="d-flex flex-wrap gap-4 align-items-center">
+                            <div>
+                                <div className="fw-semibold fs-5">{loyaltyPoints}</div>
+                                <div className="text-muted small">Points available</div>
+                            </div>
+                            <div>
+                                <div className="fw-semibold fs-5">{formatPrice(discountBalanceCents)}</div>
+                                <div className="text-muted small">Discount bank</div>
+                            </div>
+                            <div className="d-flex gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline-primary"
+                                    onClick={handleClaimOpen}
+                                    disabled={loyaltyPoints <= 0 || claimSubmitting}
+                                >
+                                    Claim points
+                                </Button>
+                                {!isMember && (
+                                    <Button size="sm" variant="outline-secondary" onClick={handleMembershipOpen}>
+                                        Join membership
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    {discountBalanceCents > 0 && (
+                        <p className="text-muted small mb-0 mt-2">
+                            We will offer to apply your discount when you check out.
+                        </p>
+                    )}
+                </section>
             )}
 
             <section className="menu-section">
@@ -284,9 +406,73 @@ const MenuPage = () => {
                     </Modal.Footer>
                 </Form>
             </Modal>
+            <Modal show={showClaimModal} onHide={handleClaimClose} centered>
+                <Form onSubmit={handleClaimSubmit}>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Claim loyalty points</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body className="d-flex flex-column gap-3">
+                        <p className="text-muted mb-0">
+                            Each point converts to {formatPrice(pointValueCents)}. You currently have {loyaltyPoints} point{loyaltyPoints === 1 ? '' : 's'}.
+                        </p>
+                        {claimError && (
+                            <Alert variant="danger" className="mb-0">
+                                {claimError}
+                            </Alert>
+                        )}
+                        <Form.Group controlId="claimPoints">
+                            <Form.Label>Points to claim</Form.Label>
+                            <Form.Control
+                                type="number"
+                                min="1"
+                                max={loyaltyPoints || undefined}
+                                value={claimPointsValue}
+                                onChange={ handleClaimChange }
+                                placeholder="10"
+                            />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="outline-secondary" onClick={handleClaimClose} disabled={claimSubmitting}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={claimSubmitting || loyaltyPoints <= 0}>
+                            {claimSubmitting ? 'Converting...' : 'Convert to discount'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+            {/* Verification pending modal: shown when session indicates pending membership verification */}
+            <Modal show={session?.membershipPending} onHide={() => updateSession({ membershipPending: false })} centered>
+                <Modal.Header>
+                    <Modal.Title>Verify your email</Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="d-flex flex-column gap-3">
+                    <p className="mb-0">We've sent a verification link to your email. Please click the link to confirm your membership before placing orders.</p>
+                    <p className="text-muted mb-0">If you've already verified, press the button below to refresh your session.</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="outline-secondary" onClick={() => updateSession({ membershipPending: false })}>
+                        Dismiss
+                    </Button>
+                    <Button
+                        onClick={async () => {
+                            // refresh menu/session to pick up membership changes
+                            try {
+                                await loadMenu();
+                                updateSession({ membershipPending: false });
+                                toast.success('Session refreshed');
+                            } catch (err) {
+                                toast.error('Unable to refresh session');
+                            }
+                        }}
+                    >
+                        I have verified
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };
 
 export default MenuPage;
-
