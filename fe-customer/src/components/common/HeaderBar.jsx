@@ -14,8 +14,8 @@ const HeaderBar = () => {
         <Navbar bg="dark" variant="dark" className="shadow-sm">
             <Container className="justify-content-between">
                 <div className="d-flex flex-column">
-                    <span className="fw-semibold">{session.restaurant?.name || 'Omnichannel'}</span>
-                    <span className="text-muted small">Table {session.table?.name || 'N/A'}</span>
+                    <span className="fw-semibold text-white">{session.restaurant?.name || 'Omnichannel'}</span>
+                    <span className="small text-white">{session.table?.name || 'N/A'}</span>
                 </div>
                 <Badge bg={membershipStatus === 'MEMBER' ? 'success' : 'secondary'}>
                     {membershipStatus === 'MEMBER' ? 'Member' : 'Guest'}
