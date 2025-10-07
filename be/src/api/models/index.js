@@ -16,6 +16,7 @@ import menuItemModel from './menuItem.model.js';
 import guestSessionModel from './guestSession.model.js';
 import orderModel from './order.model.js';
 import orderItemModel from './orderItem.model.js';
+import orderItemRatingModel from './orderItemRating.model.js';
 import kdsTicketModel from './kdsTicket.model.js';
 import kdsActivityLogModel from './kdsActivityLog.model.js';
 import notificationModel from './notification.model.js';
@@ -40,6 +41,7 @@ const models = {
     GuestSession: guestSessionModel(sequelize),
     Order: orderModel(sequelize),
     OrderItem: orderItemModel(sequelize),
+    OrderItemRating: orderItemRatingModel(sequelize),
     KdsTicket: kdsTicketModel(sequelize),
     KdsActivityLog: kdsActivityLogModel(sequelize),
     Notification: notificationModel(sequelize)

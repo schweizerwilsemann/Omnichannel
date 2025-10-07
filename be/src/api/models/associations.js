@@ -17,8 +17,9 @@ const setupAssociations = (models) => {
         MenuItem,
         GuestSession,
         Order,
-        OrderItem,
-        KdsTicket,
+    OrderItem,
+    OrderItemRating,
+    KdsTicket,
         KdsActivityLog,
         CustomerVerificationToken,
         Notification
@@ -95,6 +96,10 @@ const setupAssociations = (models) => {
 
     MenuItem.hasMany(OrderItem, { foreignKey: 'menu_item_id', as: 'orderItems' });
     OrderItem.belongsTo(MenuItem, { foreignKey: 'menu_item_id', as: 'menuItem' });
+
+    // Order item ratings (one-to-one)
+    OrderItem.hasOne(OrderItemRating, { foreignKey: 'order_item_id', as: 'rating' });
+    OrderItemRating.belongsTo(OrderItem, { foreignKey: 'order_item_id', as: 'orderItem' });
 
     Order.hasMany(KdsTicket, { foreignKey: 'order_id', as: 'kdsTickets' });
     KdsTicket.belongsTo(Order, { foreignKey: 'order_id', as: 'order' });

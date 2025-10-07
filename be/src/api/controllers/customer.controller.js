@@ -112,12 +112,42 @@ export const registerMembershipController = async (req, res) => {
 export const verifyMembershipController = async (req, res) => {
     try {
         const result = await verifyMembershipToken(req.query);
+        // If this request comes from a browser (no Accept: application/json) redirect
+        const acceptsJson = req.headers.accept && req.headers.accept.indexOf('application/json') !== -1;
+        if (!acceptsJson) {
+            // Redirect to the customer app with a success fragment
+            const customerBase = req.app?.get('customerAppUrl') || (process.env.CUSTOMER_APP_URL || process.env.APP_URL || 'http://localhost:3030');
+            const redirectUrl = `${customerBase.replace(/\/+$/, '')}/?membershipVerified=true`;
+            return res.redirect(302, redirectUrl);
+        }
+
         return successResponse(res, {
             message: 'Membership verified',
             membershipStatus: result.membershipStatus
         }, 200);
     } catch (error) {
         logger.error('Failed to verify membership token', { message: error.message });
+        return errorResponse(res, error.message, 400);
+    }
+};
+export const claimLoyaltyPointsController = async (req, res) => {
+    try {
+        const result = await claimLoyaltyPoints(req.body.sessionToken, req.body.points);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to claim loyalty points', { message: error.message });
+        return errorResponse(res, error.message, 400);
+    }
+};
+
+export const rateOrderItemsController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const { orderId } = req.params;
+        const result = await submitOrderRatings(sessionToken, orderId, req.body.ratings);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to submit order ratings', { message: error.message });
         return errorResponse(res, error.message, 400);
     }
 };
