@@ -35,6 +35,18 @@ const orderModel = (sequelize) =>
                 allowNull: false,
                 field: 'total_cents'
             },
+            discountAppliedCents: {
+                type: DataTypes.INTEGER,
+                allowNull: false,
+                defaultValue: 0,
+                field: 'discount_applied_cents'
+            },
+            earnedLoyaltyPoints: {
+                type: DataTypes.INTEGER,
+                allowNull: false,
+                defaultValue: 0,
+                field: 'earned_loyalty_points'
+            },
             specialRequest: {
                 type: DataTypes.TEXT,
                 allowNull: true,

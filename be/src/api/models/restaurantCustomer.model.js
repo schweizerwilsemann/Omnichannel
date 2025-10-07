@@ -31,6 +31,12 @@ const restaurantCustomerModel = (sequelize) =>
                 defaultValue: 0,
                 field: 'loyalty_points'
             },
+            discountBalanceCents: {
+                type: DataTypes.INTEGER,
+                allowNull: false,
+                defaultValue: 0,
+                field: 'discount_balance_cents'
+            },
             joinedAt: {
                 type: DataTypes.DATE,
                 allowNull: false,
@@ -41,6 +47,11 @@ const restaurantCustomerModel = (sequelize) =>
                 type: DataTypes.DATE,
                 allowNull: true,
                 field: 'last_visit_at'
+            },
+            lastClaimedAt: {
+                type: DataTypes.DATE,
+                allowNull: true,
+                field: 'last_claimed_at'
             }
         },
         {
