@@ -10,6 +10,8 @@ import BottomNav from './components/common/BottomNav.jsx';
 import MenuPage from './pages/MenuPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
+import VerifyPendingPage from './pages/VerifyPendingPage.jsx';
+import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
 
 const AppContent = () => {
     const { status, error, loading, session, qrSlug, refreshTableInfo } = useSession();
@@ -30,6 +32,22 @@ const AppContent = () => {
     }
 
     if (status === 'ready' && session) {
+        // If membership verification is pending, show a dedicated page that blocks ordering
+        if (session.membershipPending) {
+            // allow direct access to the /customer/memberships/verify path (VerifyEmailPage)
+            return (
+                <div className="app-shell d-flex flex-column">
+                    <HeaderBar />
+                    <main className="flex-grow-1 container py-4">
+                        <Routes>
+                            <Route path="/customer/memberships/verify" element={<VerifyEmailPage />} />
+                            <Route path="*" element={<VerifyPendingPage />} />
+                        </Routes>
+                    </main>
+                </div>
+            );
+        }
+
         return (
             <div className="app-shell d-flex flex-column">
                 <HeaderBar />

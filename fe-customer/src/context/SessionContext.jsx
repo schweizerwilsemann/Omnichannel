@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+    import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { startSession as startSessionApi, lookupTableBySlug } from '../services/session.js';
 
 const SessionContext = createContext(null);
 
 const STORAGE_KEY = 'omnichannel.customer.session';
+const LOYALTY_POINT_VALUE_CENTS = 10;
 
 const loadFromStorage = () => {
     if (typeof window === 'undefined') {
@@ -210,6 +211,32 @@ export const SessionProvider = ({ children }) => {
         setOrdersVersion((prev) => prev + 1);
     }, []);
 
+    const updateSession = useCallback((patch) => {
+        setSession((prev) => {
+            const base = prev || {};
+            // shallow merge top-level
+            const merged = { ...base, ...patch };
+
+            // merge membership object if present to avoid overwriting nested fields
+            if (base.membership && patch && patch.membership) {
+                merged.membership = { ...base.membership, ...patch.membership };
+            }
+
+            // Persist
+            try {
+                saveToStorage(merged);
+            } catch (e) {
+                console.warn('Unable to persist updated session', e);
+            }
+
+            return merged;
+        });
+    }, []);
+
+    const clearMembershipPending = useCallback(() => {
+        updateSession({ membershipPending: false });
+    }, [updateSession]);
+
     const value = {
         session,
         status,
@@ -219,7 +246,9 @@ export const SessionProvider = ({ children }) => {
         tableInfo,
         tableLoading,
         initializeSession,
+        updateSession,
         clearSession,
+        clearMembershipPending,
         ordersVersion,
         markOrdersDirty,
         refreshTableInfo

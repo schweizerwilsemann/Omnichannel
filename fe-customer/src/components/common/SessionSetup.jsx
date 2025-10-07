@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { useSession } from '../../context/SessionContext.jsx';
+import { requestMembershipVerification } from '../../services/session.js';
 
 const defaultForm = {
     firstName: '',
@@ -14,7 +15,7 @@ const defaultForm = {
 };
 
 const SessionSetup = () => {
-    const { session, initializeSession, loading, error, qrSlug, tableInfo, tableLoading } = useSession();
+    const { session, initializeSession, updateSession, loading, error, qrSlug, tableInfo, tableLoading } = useSession();
     const [form, setForm] = useState(defaultForm);
 
     const restaurantName = tableInfo?.restaurant?.name || session?.restaurant?.name || null;
@@ -38,9 +39,51 @@ const SessionSetup = () => {
         if (disableInputs) {
             return;
         }
+        // If user requested to join loyalty we require an email to send verification
+        if (form.joinLoyalty && !form.email) {
+            toast.error('Email is required to join the loyalty program.');
+            return;
+        }
         try {
-            await initializeSession(form);
+            // If user wants to join loyalty, avoid passing the joinLoyalty flag to initializeSession
+            // because backend currently treats joinLoyalty during startSession as an immediate MEMBER.
+            // Instead: create the session first (without joinLoyalty) and then request membership verification.
+            const initPayload = { ...form };
+            if (form.joinLoyalty) {
+                // remove joinLoyalty & isMember so the backend doesn't auto-upgrade the membership
+                delete initPayload.joinLoyalty;
+                delete initPayload.isMember;
+            }
+
+            const nextSession = await initializeSession(Object.keys(initPayload).length ? initPayload : undefined);
             toast.success('Session started. Enjoy your meal!');
+
+            // If the user asked to join loyalty, trigger verification email after session is created
+            if (form.joinLoyalty) {
+                try {
+                    const resp = await requestMembershipVerification({
+                        sessionToken: nextSession.sessionToken,
+                        customer: {
+                            firstName: form.firstName || null,
+                            lastName: form.lastName || null,
+                            email: form.email,
+                            phoneNumber: form.phoneNumber || null
+                        }
+                    });
+                    const payload = resp.data?.data;
+                    if (payload && payload.membershipStatus === 'MEMBER') {
+                        toast.success('Your membership is active — welcome back!');
+                    } else {
+                        // mark session locally as pending verification so UI blocks ordering
+                        updateSession({ membershipPending: true });
+                        toast.info('Check your email to verify your membership');
+                    }
+                } catch (err) {
+                    // don't block session start if email sending fails — log and notify
+                    const msg = err.response?.data?.message || err.message || 'Failed to request membership verification';
+                    toast.warn(msg);
+                }
+            }
         } catch (err) {
             const message = err.response?.data?.message || err.message || 'Could not start session';
             toast.error(message);
