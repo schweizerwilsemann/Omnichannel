@@ -17,3 +17,5 @@ export const openOrdersStream = (sessionToken) => {
     return new EventSource(url);
 };
 
+export const claimLoyaltyPoints = (payload) => api.post('/customer/memberships/claim', payload);
+export const submitOrderRatings = (orderId, payload) => api.post(`/customer/orders/${orderId}/ratings`, payload);
