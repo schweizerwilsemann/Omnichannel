@@ -31,7 +31,8 @@ export const placeOrderSchema = Joi.object({
         )
         .min(1)
         .required(),
-    specialRequest: Joi.string().max(1000).allow(null, '').optional()
+    specialRequest: Joi.string().max(1000).allow(null, '').optional(),
+    applyLoyaltyDiscount: Joi.boolean().optional().default(false)
 });
 
 export const membershipRegistrationSchema = Joi.object({
@@ -54,3 +55,25 @@ export const qrSlugQuerySchema = Joi.object({
     qrSlug: Joi.string().trim().required()
 });
 
+export const loyaltyClaimSchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    points: Joi.number().integer().min(1).required()
+});
+
+export const orderRatingSchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    ratings: Joi.array()
+        .items(
+            Joi.object({
+                orderItemId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+                rating: Joi.number().integer().min(1).max(5).required(),
+                comment: Joi.string().max(500).allow(null, '').optional()
+            })
+        )
+        .min(1)
+        .required()
+});
+
+export const orderIdParamSchema = Joi.object({
+    orderId: Joi.string().uuid({ version: 'uuidv4' }).required()
+});

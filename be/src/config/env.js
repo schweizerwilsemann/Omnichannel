@@ -6,7 +6,9 @@ const env = {
     app: {
         env: process.env.NODE_ENV || 'development',
         port: Number(process.env.PORT) || 3301,
-        appUrl: process.env.APP_URL || 'http://localhost:3000'
+        appUrl: process.env.APP_URL || 'http://localhost:3000',
+        // Optional explicit customer-facing app URL (overrides appUrl for customer links)
+        customerAppUrl: process.env.CUSTOMER_APP_URL || process.env.APP_URL || 'http://localhost:3030'
     },
     jwtSecret: process.env.JWT_SECRET || 'changeme',
     db: {

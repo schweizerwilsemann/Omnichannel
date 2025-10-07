@@ -14,7 +14,7 @@ import {
     EMAIL_ACTIONS
 } from '../utils/common.js';
 
-const {
+const {     
     sequelize,
     Restaurant,
     RestaurantTable,
@@ -23,6 +23,7 @@ const {
     GuestSession,
     Order,
     OrderItem,
+    OrderItemRating,
     KdsTicket,
     RestaurantCustomer,
     Customer,
@@ -32,10 +33,12 @@ const {
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_SALT_ROUNDS = 10;
-
+const LOYALTY_POINT_VALUE_CENTS = 10;
 const buildVerificationUrl = (verificationId, token) => {
-    const baseUrl = env.app.appUrl.endsWith('/') ? env.app.appUrl : `${env.app.appUrl}/`;
-    return `${baseUrl}customer/membership/verify?verificationId=${verificationId}&token=${token}`;
+    const base = (env.app.customerAppUrl || env.app.appUrl) || env.app.appUrl;
+    const baseUrl = base.endsWith('/') ? base : `${base}/`;
+    // Note: route is /customer/memberships/verify (plural) — keep consistent with customer.routes
+    return `${baseUrl}customer/memberships/verify?verificationId=${verificationId}&token=${token}`;
 };
 
 const resolveSession = async (sessionToken) => {
@@ -277,6 +280,7 @@ export const startSession = async ({ qrSlug, customer: customerPayload }) => {
             membership: {
                 status: membershipStatus,
                 loyaltyPoints: membership ? membership.loyaltyPoints : 0,
+                discountBalanceCents: membership ? membership.discountBalanceCents : 0,
                 customerId: customer ? customer.id : null
             }
         };
@@ -305,12 +309,28 @@ export const getMenuForSession = async (sessionToken) => {
         ]
     });
 
+    let membership = null;
+    if (session.customerId) {
+        membership = await RestaurantCustomer.findOne({
+            where: {
+                restaurantId: session.restaurantId,
+                customerId: session.customerId
+            }
+        });
+    }
+
     return {
         session: {
             id: session.id,
             token: session.sessionToken,
             tableName: session.table?.name || null,
-            membershipStatus: session.membershipStatus
+            membershipStatus: session.membershipStatus,
+            membership: membership
+                ? {
+                      loyaltyPoints: membership.loyaltyPoints,
+                      discountBalanceCents: membership.discountBalanceCents
+                  }
+                : null
         },
         categories: categories.map((category) => ({
             id: category.id,
@@ -359,6 +379,7 @@ export const placeOrderForSession = async (sessionToken, payload) => {
 
     const menuItemIds = items.map((item) => item.menuItemId);
     const uniqueMenuItemIds = Array.from(new Set(menuItemIds));
+    const applyLoyaltyDiscount = Boolean(payload.applyLoyaltyDiscount);
 
     return sequelize.transaction(async (transaction) => {
         const menuItems = await MenuItem.findAll({
@@ -375,11 +396,31 @@ export const placeOrderForSession = async (sessionToken, payload) => {
         }
 
         const menuItemMap = mapMenuItems(menuItems);
-        const totalCents = computeOrderTotals(items, menuItemMap);
+        const subtotalCents = computeOrderTotals(items, menuItemMap);
 
-        if (totalCents <= 0) {
+        if (subtotalCents <= 0) {
             throw new Error('Order total must be greater than zero');
         }
+
+        let membershipRecord = null;
+        if (session.customerId) {
+            membershipRecord = await RestaurantCustomer.findOne({
+                where: {
+                    restaurantId: session.restaurantId,
+                    customerId: session.customerId
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+        }
+
+        let discountAppliedCents = 0;
+        if (membershipRecord && applyLoyaltyDiscount && membershipRecord.discountBalanceCents > 0) {
+            discountAppliedCents = Math.min(membershipRecord.discountBalanceCents, subtotalCents);
+        }
+
+        const payableCents = Math.max(subtotalCents - discountAppliedCents, 0);
+        const earnedLoyaltyPoints = membershipRecord ? Math.floor(payableCents / 100) : 0;
 
         const order = await Order.create(
             {
@@ -387,7 +428,9 @@ export const placeOrderForSession = async (sessionToken, payload) => {
                 guestSessionId: session.id,
                 customerId: session.customerId,
                 status: ORDER_STATUS.PLACED,
-                totalCents,
+                totalCents: payableCents,
+                discountAppliedCents,
+                earnedLoyaltyPoints,
                 specialRequest: payload.specialRequest || null
             },
             { transaction }
@@ -430,26 +473,21 @@ export const placeOrderForSession = async (sessionToken, payload) => {
             { transaction }
         );
 
-        if (session.customerId) {
-            const membershipRecord = await RestaurantCustomer.findOne({
-                where: {
-                    restaurantId: session.restaurantId,
-                    customerId: session.customerId
+        let membershipSummary = null;
+        if (membershipRecord) {
+            const nextDiscountBalance = Math.max(membershipRecord.discountBalanceCents - discountAppliedCents, 0);
+            await membershipRecord.update(
+                {
+                    loyaltyPoints: membershipRecord.loyaltyPoints + earnedLoyaltyPoints,
+                    discountBalanceCents: nextDiscountBalance,
+                    lastVisitAt: new Date()
                 },
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
-
-            if (membershipRecord) {
-                const earnedPoints = Math.floor(totalCents / 100);
-                await membershipRecord.update(
-                    {
-                        loyaltyPoints: membershipRecord.loyaltyPoints + earnedPoints,
-                        lastVisitAt: new Date()
-                    },
-                    { transaction }
-                );
-            }
+                { transaction }
+            );
+            membershipSummary = {
+                loyaltyPoints: membershipRecord.loyaltyPoints,
+                discountBalanceCents: membershipRecord.discountBalanceCents
+            };
         }
 
         logger.info('Customer order created', { orderId: order.id, sessionToken });
@@ -468,8 +506,12 @@ export const placeOrderForSession = async (sessionToken, payload) => {
         return {
             orderId: order.id,
             status: order.status,
+            subtotalCents,
+            discountAppliedCents,
             totalCents: order.totalCents,
             total: order.totalCents / 100,
+            earnedLoyaltyPoints,
+            membership: membershipSummary,
             items: orderItemsPayload.map((item) => ({
                 menuItemId: item.menuItemId,
                 quantity: item.quantity,
@@ -489,7 +531,10 @@ export const listOrdersForSession = async (sessionToken) => {
             {
                 model: OrderItem,
                 as: 'items',
-                include: [{ model: MenuItem, as: 'menuItem' }]
+                include: [
+                    { model: MenuItem, as: 'menuItem' },
+                    { model: OrderItemRating, as: 'rating' }
+                ]
             },
             {
                 model: KdsTicket,
@@ -508,20 +553,34 @@ export const listOrdersForSession = async (sessionToken) => {
             return ticket.sequenceNo > current.sequenceNo ? ticket : current;
         }, null);
 
+        const items = (order.items || []).map((item) => ({
+            id: item.id,
+            menuItemId: item.menuItemId,
+            name: item.menuItem?.name || null,
+            quantity: item.quantity,
+            priceCents: item.priceCentsSnapshot,
+            notes: item.notes || null,
+            rating: item.rating
+                ? {
+                      value: item.rating.rating,
+                      comment: item.rating.comment,
+                      ratedAt: item.rating.ratedAt
+                  }
+                : null
+        }));
+
+        const unratedItems = items.filter((item) => !item.rating);
+
         return {
             id: order.id,
             status: order.status,
             totalCents: order.totalCents,
             total: order.totalCents / 100,
+            discountAppliedCents: order.discountAppliedCents || 0,
+            earnedLoyaltyPoints: order.earnedLoyaltyPoints || 0,
             placedAt: order.placedAt,
-            items: (order.items || []).map((item) => ({
-                id: item.id,
-                menuItemId: item.menuItemId,
-                name: item.menuItem?.name || null,
-                quantity: item.quantity,
-                priceCents: item.priceCentsSnapshot,
-                notes: item.notes || null
-            })),
+            canRate: order.status === ORDER_STATUS.COMPLETED && unratedItems.length > 0,
+            items,
             ticket: latestTicket
                 ? {
                       id: latestTicket.id,
@@ -541,6 +600,133 @@ export const listOrdersForSession = async (sessionToken) => {
 
 
 
+export const claimLoyaltyPoints = async (sessionToken, points) => {
+    const session = await resolveSession(sessionToken);
+
+    if (!session.customerId) {
+        throw new Error('You need a loyalty membership to claim points');
+    }
+
+    const normalizedPoints = Number(points);
+    if (!Number.isInteger(normalizedPoints) || normalizedPoints <= 0) {
+        throw new Error('Points to claim must be a positive integer');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        const membershipRecord = await RestaurantCustomer.findOne({
+            where: {
+                restaurantId: session.restaurantId,
+                customerId: session.customerId
+            },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (!membershipRecord) {
+            throw new Error('Membership record not found for this session');
+        }
+
+        if (membershipRecord.loyaltyPoints < normalizedPoints) {
+            throw new Error('Not enough loyalty points to claim the requested amount');
+        }
+
+        const discountValueCents = normalizedPoints * LOYALTY_POINT_VALUE_CENTS;
+
+        await membershipRecord.update(
+            {
+                loyaltyPoints: membershipRecord.loyaltyPoints - normalizedPoints,
+                discountBalanceCents: membershipRecord.discountBalanceCents + discountValueCents,
+                lastClaimedAt: new Date()
+            },
+            { transaction }
+        );
+
+        await membershipRecord.reload({ transaction });
+
+        return {
+            claimedPoints: normalizedPoints,
+            discountValueCents,
+            pointValueCents: LOYALTY_POINT_VALUE_CENTS,
+            loyaltyPoints: membershipRecord.loyaltyPoints,
+            discountBalanceCents: membershipRecord.discountBalanceCents,
+            lastClaimedAt: membershipRecord.lastClaimedAt
+        };
+    });
+};
+
+export const submitOrderRatings = async (sessionToken, orderId, ratings = []) => {
+    const session = await resolveSession(sessionToken);
+
+    if (!Array.isArray(ratings) || ratings.length === 0) {
+        throw new Error('At least one rating entry is required');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        const order = await Order.findOne({
+            where: { id: orderId, guestSessionId: session.id },
+            include: [{ model: OrderItem, as: 'items' }],
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (!order) {
+            throw new Error('Order not found for this session');
+        }
+
+        if (order.status !== ORDER_STATUS.COMPLETED) {
+            throw new Error('Order must be completed before it can be rated');
+        }
+
+        const itemMap = new Map((order.items || []).map((item) => [item.id, item]));
+        const normalizedRatings = ratings.map((entry) => {
+            if (!entry.orderItemId || !itemMap.has(entry.orderItemId)) {
+                throw new Error('One or more rated dishes were not found in this order');
+            }
+
+            const ratingValue = Number(entry.rating);
+            if (!Number.isFinite(ratingValue)) {
+                throw new Error('Rating must be a number');
+            }
+
+            const clampedRating = Math.max(1, Math.min(5, Math.round(ratingValue)));
+
+            return {
+                orderItemId: entry.orderItemId,
+                rating: clampedRating,
+                comment: entry.comment ? String(entry.comment).slice(0, 500) : null
+            };
+        });
+
+        const results = [];
+        for (const entry of normalizedRatings) {
+            const orderItem = itemMap.get(entry.orderItemId);
+            await OrderItemRating.upsert(
+                {
+                    orderId: order.id,
+                    orderItemId: orderItem.id,
+                    menuItemId: orderItem.menuItemId,
+                    restaurantId: order.restaurantId,
+                    guestSessionId: order.guestSessionId,
+                    customerId: session.customerId || null,
+                    rating: entry.rating,
+                    comment: entry.comment,
+                    ratedAt: new Date()
+                },
+                { transaction }
+            );
+            results.push({
+                orderItemId: orderItem.id,
+                rating: entry.rating,
+                comment: entry.comment
+            });
+        }
+
+        return {
+            orderId: order.id,
+            ratings: results
+        };
+    });
+};
 export const requestMembershipVerification = async ({ sessionToken, customer: customerPayload = {} }) => {
     const session = await resolveSession(sessionToken);
 
@@ -558,6 +744,17 @@ export const requestMembershipVerification = async ({ sessionToken, customer: cu
 
     return sequelize.transaction(async (transaction) => {
         const { customer, membership } = await upsertCustomer(normalizedPayload, session.restaurantId, transaction);
+
+        // If the customer is already a member, there's no need to create a verification token or send an email.
+        if (membership && membership.status === MEMBERSHIP_STATUS.MEMBER) {
+            return {
+                customerId: customer.id,
+                restaurantId: session.restaurantId,
+                membershipStatus: MEMBERSHIP_STATUS.MEMBER,
+                email: normalizedPayload.email,
+                expiresAt: null
+            };
+        }
 
         const sessionForUpdate = await GuestSession.findByPk(session.id, {
             transaction,

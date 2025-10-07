@@ -3,9 +3,18 @@ import cors from 'cors';
 import helmet from 'helmet';
 import routes from '../api/routes/index.js';
 import logger from './logger.js';
+import env from './env.js';
 
 const createExpressApp = () => {
     const app = express();
+
+    // expose customer app URL (used for email verification redirects)
+    try {
+        const customerUrl = env.app.customerAppUrl || env.app.appUrl;
+        app.set('customerAppUrl', customerUrl);
+    } catch (e) {
+        // ignore
+    }
 
     app.use(helmet());
 

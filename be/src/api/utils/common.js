@@ -1,4 +1,4 @@
-export const TABLES = {
+    export const TABLES = {
     USERS: 'users',
     USER_CREDENTIALS: 'user_credentials',
     ADMIN_SESSIONS: 'admin_sessions',
@@ -16,10 +16,11 @@ export const TABLES = {
     GUEST_SESSIONS: 'guest_sessions',
     ORDERS: 'orders',
     ORDER_ITEMS: 'order_items',
+    ORDER_ITEM_RATINGS: 'order_item_ratings',
     KDS_TICKETS: 'kds_tickets',
     KDS_ACTIVITY_LOGS: 'kds_activity_logs',
     NOTIFICATIONS: 'notifications'
-};
+};  
 
 export const USER_ROLES = Object.freeze({ OWNER: 'OWNER', MANAGER: 'MANAGER' });
 export const USER_STATUS = Object.freeze({ ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE' });
