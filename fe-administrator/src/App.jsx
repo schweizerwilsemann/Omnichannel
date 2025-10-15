@@ -5,6 +5,7 @@ import ProtectedRoute from './routes/ProtectedRoute.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
+import TablesPage from './pages/TablesPage.jsx';
 import AssetsPage from './pages/AssetsPage.jsx';
 import InvitationAcceptPage from './pages/InvitationAcceptPage.jsx';
 import PasswordResetRequestPage from './pages/PasswordResetRequestPage.jsx';
@@ -20,6 +21,7 @@ const App = () => (
             <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/tables" element={<TablesPage />} />
                 <Route path="/assets" element={<AssetsPage />} />
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" />} />

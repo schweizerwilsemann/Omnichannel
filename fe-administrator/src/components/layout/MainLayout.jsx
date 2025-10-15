@@ -29,6 +29,9 @@ const MainLayout = ({ children }) => {
                             <Nav.Link as={Link} to="/orders">
                                 Orders
                             </Nav.Link>
+                            <Nav.Link as={Link} to="/tables">
+                                Tables
+                            </Nav.Link>
                             <Nav.Link as={Link} to="/assets">
                                 Assets
                             </Nav.Link>

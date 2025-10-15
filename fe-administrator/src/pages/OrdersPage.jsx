@@ -4,6 +4,7 @@ import { Alert, Badge, Button, Card, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import MainLayout from '../components/layout/MainLayout.jsx';
 import { fetchOrders, updateOrderStatus } from '../services/order.service.js';
+import { closeGuestSession } from '../services/session.service.js';
 import { createOrderStream } from '../services/orderEvents.service.js';
 
 const statusVariantMap = {
@@ -246,6 +247,28 @@ const OrdersPage = () => {
                                     <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div className="fw-semibold">Total {formatCurrency(order.totalCents)}</div>
                                         <div className="d-flex flex-wrap gap-2">
+                                            {/* Admin control: End guest session for the table */}
+                                            {order.session?.id && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline-danger"
+                                                    onClick={async () => {
+                                                        if (!confirm('End guest session for this table? This will free the table for the next customer.')) {
+                                                            return;
+                                                        }
+                                                        try {
+                                                            await closeGuestSession(order.session.id);
+                                                            toast.success('Session closed — table is now free.');
+                                                            // refresh orders and UI
+                                                            await loadOrders();
+                                                        } catch (err) {
+                                                            toast.error(err.response?.data?.message || 'Unable to close session');
+                                                        }
+                                                    }}
+                                                >
+                                                    End session
+                                                </Button>
+                                            )}
                                             {actions.length === 0 ? (
                                                 <Button variant="outline-secondary" size="sm" disabled>
                                                     No actions
