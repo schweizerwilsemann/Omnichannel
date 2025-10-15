@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { SessionProvider, useSession } from './context/SessionContext.jsx';
 import { CartProvider } from './context/CartContext.jsx';
@@ -14,8 +14,19 @@ import VerifyPendingPage from './pages/VerifyPendingPage.jsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
 
 const AppContent = () => {
+    const location = useLocation();
     const { status, error, loading, session, qrSlug, refreshTableInfo } = useSession();
-
+    const isVerificationRoute = location.pathname === '/customer/memberships/verify';
+    if (isVerificationRoute && (!session || status !== 'ready')) {
+        return (
+            <div className="app-shell d-flex flex-column">
+                {session ? <HeaderBar /> : null}
+                <main className="flex-grow-1 container py-4">
+                    <VerifyEmailPage />
+                </main>
+            </div>
+        );
+    }
     if (status === 'error') {
         const canRetry = Boolean(qrSlug);
         return (
@@ -79,3 +90,4 @@ const App = () => (
 );
 
 export default App;
+

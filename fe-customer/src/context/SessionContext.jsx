@@ -369,25 +369,49 @@ export const SessionProvider = ({ children }) => {
     }, []);
 
     const updateSession = useCallback((patch) => {
+        let snapshot = null;
         setSession((prev) => {
             const base = prev || {};
-            // shallow merge top-level
             const merged = { ...base, ...patch };
 
-            // merge membership object if present to avoid overwriting nested fields
             if (base.membership && patch && patch.membership) {
                 merged.membership = { ...base.membership, ...patch.membership };
             }
 
-            // Persist
             try {
                 saveToStorage(merged);
             } catch (e) {
                 console.warn('Unable to persist updated session', e);
             }
 
+            snapshot = merged;
             return merged;
         });
+
+        if (snapshot?.sessionToken) {
+            setStatus('ready');
+            setError(null);
+            setTableInfo((prev) => {
+                const next = { ...(prev || {}) };
+
+                if (patch?.qrSlug || snapshot.qrSlug) {
+                    next.qrSlug = patch?.qrSlug || snapshot.qrSlug || prev?.qrSlug || null;
+                }
+                if (patch?.restaurant || snapshot.restaurant) {
+                    next.restaurant = patch?.restaurant || snapshot.restaurant || prev?.restaurant || null;
+                }
+                if (patch?.table || snapshot.table) {
+                    next.table = patch?.table || snapshot.table || prev?.table || null;
+                }
+
+                next.activeSession = {
+                    sessionToken: snapshot.sessionToken,
+                    startedAt: snapshot.startedAt || prev?.activeSession?.startedAt || new Date().toISOString()
+                };
+
+                return next;
+            });
+        }
     }, []);
 
     const clearMembershipPending = useCallback(() => {
@@ -421,4 +445,5 @@ export const useSession = () => {
     }
     return context;
 };
+
 
