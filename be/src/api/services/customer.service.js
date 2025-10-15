@@ -849,9 +849,34 @@ export const verifyMembershipToken = async ({ verificationId, token }) => {
         if (!record) {
             throw new Error('Verification request not found');
         }
+
         if (record.usedAt) {
-            throw new Error('Verification link has already been used');
+            const membership = await RestaurantCustomer.findOne({
+                where: {
+                    restaurantId: record.restaurantId,
+                    customerId: record.customerId
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            const activeGuestSession = await GuestSession.findOne({
+                where: {
+                    customerId: record.customerId,
+                    restaurantId: record.restaurantId,
+                    closedAt: null
+                }
+            });
+
+            return {
+                customerId: record.customerId,
+                restaurantId: record.restaurantId,
+                membershipStatus: membership?.status || MEMBERSHIP_STATUS.MEMBER,
+                sessionToken: activeGuestSession?.sessionToken || null,
+                alreadyVerified: true
+            };
         }
+
         if (record.expiresAt < new Date()) {
             throw new Error('Verification link has expired');
         }
@@ -921,7 +946,8 @@ export const verifyMembershipToken = async ({ verificationId, token }) => {
             customerId: record.customerId,
             restaurantId: record.restaurantId,
             membershipStatus: MEMBERSHIP_STATUS.MEMBER,
-            sessionToken: activeGuestSession?.sessionToken || null
+            sessionToken: activeGuestSession?.sessionToken || null,
+            alreadyVerified: false
         };
     });
 };
@@ -965,3 +991,4 @@ export const closeSessionByToken = async (sessionToken) => {
 
     return { message: 'Session closed' };
 };
+

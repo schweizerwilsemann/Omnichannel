@@ -7,7 +7,9 @@ import {
     verifyMembershipToken,
     getTableDetailsBySlug,
     getActiveSessionByToken,
-    closeSessionByToken
+    closeSessionByToken,
+    claimLoyaltyPoints,
+    submitOrderRatings
 } from '../services/customer.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
@@ -71,6 +73,17 @@ export const lookupTableController = async (req, res) => {
     }
 };
 
+export const getActiveSessionController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const session = await getActiveSessionByToken(sessionToken);
+        return successResponse(res, session, 200);
+    } catch (error) {
+        logger.error('Failed to load active session', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load active session', 400);
+    }
+};
+
 export const streamCustomerOrdersController = async (req, res) => {
     try {
         const sessionToken = extractSessionToken(req);
@@ -113,25 +126,25 @@ export const registerMembershipController = async (req, res) => {
 export const verifyMembershipController = async (req, res) => {
     try {
         const result = await verifyMembershipToken(req.query);
-        // If this request comes from a browser (no Accept: application/json) redirect
         const acceptsJson = req.headers.accept && req.headers.accept.indexOf('application/json') !== -1;
+
         if (!acceptsJson) {
-            // Redirect to the customer app with a success fragment
             const customerBase = req.app?.get('customerAppUrl') || (process.env.CUSTOMER_APP_URL || process.env.APP_URL || 'http://localhost:3030');
-        // include customer and restaurant context so the customer app can match local sessions
-        const params = new URLSearchParams();
-        params.set('membershipVerified', 'true');
-        if (result.customerId) params.set('customerId', String(result.customerId));
-        if (result.restaurantId) params.set('restaurantId', String(result.restaurantId));
-        if (result.membershipStatus) params.set('membershipStatus', String(result.membershipStatus));
-    if (result.sessionToken) params.set('sessionToken', String(result.sessionToken));
-        const redirectUrl = `${customerBase.replace(/\/+$/, '')}/?${params.toString()}`;
+            const params = new URLSearchParams();
+            params.set('membershipVerified', 'true');
+            if (result.customerId) params.set('customerId', String(result.customerId));
+            if (result.restaurantId) params.set('restaurantId', String(result.restaurantId));
+            if (result.membershipStatus) params.set('membershipStatus', String(result.membershipStatus));
+            if (result.sessionToken) params.set('sessionToken', String(result.sessionToken));
+            if (result.alreadyVerified) params.set('alreadyVerified', 'true');
+            const redirectUrl = `${customerBase.replace(/\/+$/, '')}/?${params.toString()}`;
             return res.redirect(302, redirectUrl);
         }
 
         return successResponse(res, {
             message: 'Membership verified',
-            membershipStatus: result.membershipStatus
+            membershipStatus: result.membershipStatus,
+            alreadyVerified: Boolean(result.alreadyVerified)
         }, 200);
     } catch (error) {
         logger.error('Failed to verify membership token', { message: error.message });

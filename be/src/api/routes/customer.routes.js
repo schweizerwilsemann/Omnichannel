@@ -9,7 +9,8 @@ import {
     streamCustomerOrdersController,
     registerMembershipController,
     verifyMembershipController,
-    getMembershipStatusController
+    getMembershipStatusController,
+    getActiveSessionController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -28,6 +29,7 @@ router.get('/tables/lookup', validationMiddleware(qrSlugQuerySchema, 'query'), l
 router.post('/memberships/register', validationMiddleware(membershipRegistrationSchema), registerMembershipController);
 router.get('/memberships/verify', validationMiddleware(membershipVerifySchema, 'query'), verifyMembershipController);
 router.get('/memberships/status', validationMiddleware(membershipStatusQuerySchema, 'query'), getMembershipStatusController);
+router.get('/sessions/active', validationMiddleware(sessionTokenQuerySchema, 'query'), getActiveSessionController);
 router.get('/menu', validationMiddleware(sessionTokenQuerySchema, 'query'), getMenuController);
 router.post('/orders', validationMiddleware(placeOrderSchema), placeOrderController);
 router.get('/orders/stream', validationMiddleware(sessionTokenQuerySchema, 'query'), streamCustomerOrdersController);
@@ -44,4 +46,9 @@ router.post('/sessions/close', validationMiddleware(sessionTokenQuerySchema, 'qu
 });
 
 export default router;
+
+
+
+
+
 
