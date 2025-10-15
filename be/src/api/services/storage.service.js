@@ -1,4 +1,9 @@
-import { ensureBucket as ensureMinioBucket, minioClient, bucketName, getPublicObjectUrl } from '../../config/minio.js';
+import {
+    ensureBucket as ensureMinioBucket,
+    minioClient,
+    bucketName,
+    getPublicObjectUrl
+} from '../../config/minio.js';
 import logger from '../../config/logger.js';
 
 class StorageService {
@@ -22,12 +27,12 @@ class StorageService {
     }
 
     buildDownloadUrl(fileName) {
-        const publicUrl = getPublicObjectUrl(fileName);
-        if (publicUrl) {
-            return publicUrl;
-        }
-
         return `/api/v1/assets/${encodeURIComponent(fileName)}`;
+    }
+
+    buildPublicUrl(fileName) {
+        const publicUrl = getPublicObjectUrl(fileName);
+        return publicUrl || null;
     }
 
     async uploadFile(file) {
@@ -46,7 +51,8 @@ class StorageService {
             size: file.size,
             mimetype: file.mimetype,
             uploadedAt: new Date().toISOString(),
-            downloadUrl: this.buildDownloadUrl(fileName)
+            downloadUrl: this.buildDownloadUrl(fileName),
+            publicUrl: this.buildPublicUrl(fileName)
         };
     }
 
@@ -79,7 +85,8 @@ class StorageService {
                     fileName: obj.name,
                     size: obj.size ?? 0,
                     lastModified,
-                    downloadUrl: this.buildDownloadUrl(obj.name)
+                    downloadUrl: this.buildDownloadUrl(obj.name),
+                    publicUrl: this.buildPublicUrl(obj.name)
                 });
             });
 
@@ -126,4 +133,46 @@ export const initializeStorage = async () => {
         logger.error('Failed to initialize storage', { message: error.message });
         // Do not crash the server if storage is not available; continue startup
     }
+};
+
+const buildApiAssetUrl = (fileName) => `/api/v1/assets/${encodeURIComponent(fileName)}`;
+
+const extractFileKeyFromUrl = (inputUrl) => {
+    try {
+        const parsed = new URL(inputUrl);
+        const pathSegments = parsed.pathname.split('/').filter(Boolean);
+
+        const bucketIndex = pathSegments.indexOf(bucketName);
+        if (bucketIndex >= 0 && bucketIndex < pathSegments.length - 1) {
+            return pathSegments.slice(bucketIndex + 1).join('/');
+        }
+
+        if (parsed.hostname.startsWith(`${bucketName}.`)) {
+            return pathSegments.join('/');
+        }
+
+        return '';
+    } catch (error) {
+        return '';
+    }
+};
+
+export const normalizeAssetUrl = (value) => {
+    if (!value) {
+        return null;
+    }
+
+    if (/^https?:\/\//i.test(value)) {
+        const key = extractFileKeyFromUrl(value);
+        if (key) {
+            return buildApiAssetUrl(key);
+        }
+        return value;
+    }
+
+    if (value.startsWith('/')) {
+        return value;
+    }
+
+    return buildApiAssetUrl(value);
 };

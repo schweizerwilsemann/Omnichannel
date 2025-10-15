@@ -45,6 +45,10 @@ export const downloadAsset = async (req, res) => {
         const { stream, info } = await storageService.getFileStream(fileName);
         const contentType = info?.metaData?.['content-type'] || 'application/octet-stream';
 
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Last-Modified');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         res.setHeader('Content-Type', contentType);
         if (info?.size) {
             res.setHeader('Content-Length', info.size);

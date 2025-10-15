@@ -7,6 +7,7 @@ import env from '../../config/env.js';
 import { sendEmail } from './email.service.js';
 import { safeLoadOrderForEvent } from './order.service.js';
 import { notifyOrderCreated } from './realtime.service.js';
+import { normalizeAssetUrl } from './storage.service.js';
 import {
     MEMBERSHIP_STATUS,
     ORDER_STATUS,
@@ -353,7 +354,7 @@ export const getMenuForSession = async (sessionToken) => {
                 price: item.priceCents / 100,
                 sku: item.sku,
                 prepTimeSeconds: item.prepTimeSeconds,
-                imageUrl: item.imageUrl
+                imageUrl: normalizeAssetUrl(item.imageUrl)
             }))
         }))
     };
