@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext.jsx';
 import { useSession } from '../context/SessionContext.jsx';
 import { placeCustomerOrder, closeSession } from '../services/session.js';
+import resolveAssetUrl from '../utils/assets.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center';
@@ -99,7 +100,7 @@ const CheckoutPage = () => {
                             {cartItems.map((item) => (
                                 <li key={item.id} className="checkout-list__item">
                                     <img
-                                        src={item.imageUrl || FALLBACK_IMAGE}
+                                        src={resolveAssetUrl(item.imageUrl) || FALLBACK_IMAGE}
                                         alt={item.name}
                                         loading="lazy"
                                         className="checkout-list__image"
