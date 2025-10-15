@@ -277,6 +277,15 @@ export const startSession = async ({ qrSlug, customer: customerPayload }) => {
                 id: table.id,
                 name: table.name
             },
+            customer: customer
+                ? {
+                      id: customer.id,
+                      firstName: customer.firstName,
+                      lastName: customer.lastName,
+                      email: customer.email,
+                      phoneNumber: customer.phoneNumber
+                  }
+                : null,
             membership: {
                 status: membershipStatus,
                 loyaltyPoints: membership ? membership.loyaltyPoints : 0,
@@ -900,10 +909,59 @@ export const verifyMembershipToken = async ({ verificationId, token }) => {
             }
         );
 
+        const activeGuestSession = await GuestSession.findOne({
+            where: {
+                customerId: record.customerId,
+                restaurantId: record.restaurantId,
+                closedAt: null
+            }
+        });
+
         return {
             customerId: record.customerId,
             restaurantId: record.restaurantId,
-            membershipStatus: MEMBERSHIP_STATUS.MEMBER
+            membershipStatus: MEMBERSHIP_STATUS.MEMBER,
+            sessionToken: activeGuestSession?.sessionToken || null
         };
     });
+};
+
+export const getMembershipStatus = async (customerId, restaurantId) => {
+    if (!customerId || !restaurantId) {
+        throw new Error('customerId and restaurantId are required');
+    }
+
+    const membership = await RestaurantCustomer.findOne({
+        where: { customerId, restaurantId }
+    });
+
+    if (!membership) {
+        return { status: MEMBERSHIP_STATUS.GUEST };
+    }
+
+    return {
+        status: membership.status,
+        loyaltyPoints: membership.loyaltyPoints,
+        discountBalanceCents: membership.discountBalanceCents,
+        joinedAt: membership.joinedAt
+    };
+};
+
+export const closeSessionByToken = async (sessionToken) => {
+    if (!sessionToken) {
+        throw new Error('Session token is required');
+    }
+
+    const session = await GuestSession.findOne({ where: { sessionToken } });
+    if (!session) {
+        throw new Error('Session not found');
+    }
+
+    if (session.closedAt) {
+        return { message: 'Session already closed' };
+    }
+
+    await session.update({ closedAt: new Date() });
+
+    return { message: 'Session closed' };
 };

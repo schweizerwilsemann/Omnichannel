@@ -150,3 +150,10 @@ export const notifyOrderUpdated = (order) => {
         broadcastToSession(order.session.sessionToken, 'order.updated', order);
     }
 };
+
+export const notifySessionClosed = (sessionToken, payload = {}) => {
+    if (!sessionToken) {
+        return;
+    }
+    broadcastToSession(sessionToken, 'session.closed', payload);
+};

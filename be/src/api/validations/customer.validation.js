@@ -51,6 +51,10 @@ export const membershipVerifySchema = Joi.object({
     verificationId: Joi.string().uuid({ version: 'uuidv4' }).required(),
     token: Joi.string().min(12).max(255).required()
 });
+export const membershipStatusQuerySchema = Joi.object({
+    customerId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    restaurantId: Joi.string().uuid({ version: 'uuidv4' }).required()
+});
 export const qrSlugQuerySchema = Joi.object({
     qrSlug: Joi.string().trim().required()
 });

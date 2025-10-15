@@ -8,7 +8,8 @@ import {
     lookupTableController,
     streamCustomerOrdersController,
     registerMembershipController,
-    verifyMembershipController
+    verifyMembershipController,
+    getMembershipStatusController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -16,6 +17,7 @@ import {
     placeOrderSchema,
     membershipRegistrationSchema,
     membershipVerifySchema,
+    membershipStatusQuerySchema,
     qrSlugQuerySchema
 } from '../validations/customer.validation.js';
 
@@ -25,10 +27,21 @@ router.post('/sessions', validationMiddleware(startSessionSchema), startSessionC
 router.get('/tables/lookup', validationMiddleware(qrSlugQuerySchema, 'query'), lookupTableController);
 router.post('/memberships/register', validationMiddleware(membershipRegistrationSchema), registerMembershipController);
 router.get('/memberships/verify', validationMiddleware(membershipVerifySchema, 'query'), verifyMembershipController);
+router.get('/memberships/status', validationMiddleware(membershipStatusQuerySchema, 'query'), getMembershipStatusController);
 router.get('/menu', validationMiddleware(sessionTokenQuerySchema, 'query'), getMenuController);
 router.post('/orders', validationMiddleware(placeOrderSchema), placeOrderController);
 router.get('/orders/stream', validationMiddleware(sessionTokenQuerySchema, 'query'), streamCustomerOrdersController);
 router.get('/orders', validationMiddleware(sessionTokenQuerySchema, 'query'), listOrdersController);
+// Allow customers to close their guest session (e.g. when leaving table)
+router.post('/sessions/close', validationMiddleware(sessionTokenQuerySchema, 'query'), async (req, res) => {
+    try {
+        const sessionToken = req.query.sessionToken;
+        const result = await (await import('../services/customer.service.js')).closeSessionByToken(sessionToken);
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+    }
+});
 
 export default router;
 

@@ -6,7 +6,8 @@ import {
     requestMembershipVerification,
     verifyMembershipToken,
     getTableDetailsBySlug,
-    getActiveSessionByToken
+    getActiveSessionByToken,
+    closeSessionByToken
 } from '../services/customer.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
@@ -117,7 +118,14 @@ export const verifyMembershipController = async (req, res) => {
         if (!acceptsJson) {
             // Redirect to the customer app with a success fragment
             const customerBase = req.app?.get('customerAppUrl') || (process.env.CUSTOMER_APP_URL || process.env.APP_URL || 'http://localhost:3030');
-            const redirectUrl = `${customerBase.replace(/\/+$/, '')}/?membershipVerified=true`;
+        // include customer and restaurant context so the customer app can match local sessions
+        const params = new URLSearchParams();
+        params.set('membershipVerified', 'true');
+        if (result.customerId) params.set('customerId', String(result.customerId));
+        if (result.restaurantId) params.set('restaurantId', String(result.restaurantId));
+        if (result.membershipStatus) params.set('membershipStatus', String(result.membershipStatus));
+    if (result.sessionToken) params.set('sessionToken', String(result.sessionToken));
+        const redirectUrl = `${customerBase.replace(/\/+$/, '')}/?${params.toString()}`;
             return res.redirect(302, redirectUrl);
         }
 
@@ -127,6 +135,17 @@ export const verifyMembershipController = async (req, res) => {
         }, 200);
     } catch (error) {
         logger.error('Failed to verify membership token', { message: error.message });
+        return errorResponse(res, error.message, 400);
+    }
+};
+export const getMembershipStatusController = async (req, res) => {
+    try {
+        const customerId = req.query.customerId;
+        const restaurantId = req.query.restaurantId;
+        const result = await (await import('../services/customer.service.js')).getMembershipStatus(customerId, restaurantId);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to fetch membership status', { message: error.message });
         return errorResponse(res, error.message, 400);
     }
 };
