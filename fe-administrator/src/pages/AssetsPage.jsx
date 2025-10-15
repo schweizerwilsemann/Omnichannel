@@ -14,9 +14,18 @@ const resolveUrl = (url) => {
         return url;
     }
 
-    const base = appConfig.baseUrl.replace(/\/$/, '');
-    const path = url.startsWith('/') ? url : `/${url}`;
-    return `${base}${path}`;
+    const base = appConfig.baseUrl || '';
+
+    try {
+        const withTrailing = base.endsWith('/') ? base : `${base}/`;
+        const parsed = new URL(withTrailing);
+        const path = url.startsWith('/') ? url : `/${url}`;
+        return `${parsed.origin}${path}`;
+    } catch (error) {
+        const normalizedBase = base.replace(/\/$/, '');
+        const path = url.startsWith('/') ? url : `/${url}`;
+        return `${normalizedBase}${path}`;
+    }
 };
 
 const formatBytes = (bytes) => {

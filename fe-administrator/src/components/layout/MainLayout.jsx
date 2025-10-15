@@ -35,6 +35,9 @@ const MainLayout = ({ children }) => {
                             <Nav.Link as={Link} to="/assets">
                                 Assets
                             </Nav.Link>
+                            <Nav.Link as={Link} to="/management">
+                                Management
+                            </Nav.Link>
                         </Nav>
                         <Nav>
                             <Navbar.Text className="me-3">

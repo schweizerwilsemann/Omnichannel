@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
 import TablesPage from './pages/TablesPage.jsx';
 import AssetsPage from './pages/AssetsPage.jsx';
+import ManagementPage from './pages/ManagementPage.jsx';
 import InvitationAcceptPage from './pages/InvitationAcceptPage.jsx';
 import PasswordResetRequestPage from './pages/PasswordResetRequestPage.jsx';
 import PasswordResetConfirmPage from './pages/PasswordResetConfirmPage.jsx';
@@ -23,6 +24,7 @@ const App = () => (
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/tables" element={<TablesPage />} />
                 <Route path="/assets" element={<AssetsPage />} />
+                <Route path="/management" element={<ManagementPage />} />
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="*" element={<Navigate to="/dashboard" />} />
