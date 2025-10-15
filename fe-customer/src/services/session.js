@@ -21,3 +21,6 @@ export const openOrdersStream = (sessionToken) => {
 export const claimLoyaltyPoints = (payload) => api.post('/customer/memberships/claim', payload);
 export const submitOrderRatings = (orderId, payload) => api.post(`/customer/orders/${orderId}/ratings`, payload);
 export const closeSession = (params) => api.post('/customer/sessions/close', null, { params });
+
+export const fetchActiveSession = (sessionToken) => api.get('/customer/sessions/active', { params: { sessionToken } });
+
