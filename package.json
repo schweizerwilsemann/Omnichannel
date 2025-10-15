@@ -5,7 +5,8 @@
   "workspaces": [
     "be",
     "fe-administrator",
-    "fe-customer"
+    "fe-customer",
+    "minio"
   ],
   "scripts": {
     "install:be": "pnpm --filter ./be install",
@@ -15,6 +16,7 @@
     "build:fe-customer": "pnpm --filter ./fe-customer run build",
     "dev": "pnpm -w --parallel --filter ./be run dev --filter ./fe run start --filter ./fe-customer run start",
     "start:be": "pnpm --filter ./be run start",
+  "start:minio": "pnpm --filter ./minio run dev",
     "start:fe-administrator": "pnpm --filter ./fe-administrator run start",
     "build:fe-administrator": "pnpm --filter ./fe-administrator run build",
     "lint": "pnpm -w -r run lint",

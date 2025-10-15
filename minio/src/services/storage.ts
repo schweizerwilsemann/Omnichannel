@@ -71,7 +71,9 @@ class StorageService {
   async uploadFile(fileName: string, fileBuffer: Buffer, contentType: string): Promise<void> {
     if (this.useMinIO) {
       // MinIO client
-      await minioClient.putObject(this.bucket, fileName, fileBuffer, {
+      // minio.putObject(bucket, objectName, streamOrBuffer, size, metaData?)
+      // When passing a Buffer we must also provide its length as the size argument.
+      await minioClient.putObject(this.bucket, fileName, fileBuffer, fileBuffer.length, {
         'Content-Type': contentType,
       });
     } else {
