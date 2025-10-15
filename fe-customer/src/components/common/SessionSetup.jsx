@@ -71,11 +71,11 @@ const SessionSetup = () => {
                         }
                     });
                     const payload = resp.data?.data;
-                    if (payload && payload.membershipStatus === 'MEMBER') {
+                        if (payload && payload.membershipStatus === 'MEMBER') {
                         toast.success('Your membership is active — welcome back!');
                     } else {
                         // mark session locally as pending verification so UI blocks ordering
-                        updateSession({ membershipPending: true });
+                            updateSession({ membershipPending: true, customer: { firstName: form.firstName || null, lastName: form.lastName || null, email: form.email || null, phoneNumber: form.phoneNumber || null } });
                         toast.info('Check your email to verify your membership');
                     }
                 } catch (err) {

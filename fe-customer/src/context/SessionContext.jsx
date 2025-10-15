@@ -1,6 +1,8 @@
-    import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { startSession as startSessionApi, lookupTableBySlug } from '../services/session.js';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { startSession as startSessionApi, lookupTableBySlug, fetchMenu } from '../services/session.js';
+import { openOrdersStream } from '../services/session.js';
+import { toast } from 'react-toastify';
 
 const SessionContext = createContext(null);
 
@@ -13,7 +15,7 @@ const loadFromStorage = () => {
     }
 
     try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const raw = window.sessionStorage.getItem(STORAGE_KEY);
         if (!raw) {
             return null;
         }
@@ -30,7 +32,7 @@ const saveToStorage = (session) => {
     }
 
     try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+        window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     } catch (error) {
         console.warn('Unable to persist session', error);
     }
@@ -42,7 +44,7 @@ const clearStorage = () => {
     }
 
     try {
-        window.localStorage.removeItem(STORAGE_KEY);
+        window.sessionStorage.removeItem(STORAGE_KEY);
     } catch (error) {
         console.warn('Unable to clear session storage', error);
     }
@@ -61,6 +63,7 @@ export const SessionProvider = ({ children }) => {
     const [tableInfo, setTableInfo] = useState(null);
     const [tableLoading, setTableLoading] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+    const navigate = useNavigate();
 
     const refreshTableInfo = useCallback(() => {
         setRefreshKey((prev) => prev + 1);
@@ -149,6 +152,160 @@ export const SessionProvider = ({ children }) => {
             cancelled = true;
         };
     }, [qrSlug, refreshKey]);
+
+    // Listen for session-level server-sent events (session.closed) so we can react in real-time
+    useEffect(() => {
+        if (!session?.sessionToken) {
+            return () => {};
+        }
+
+        let source;
+        try {
+            source = openOrdersStream(session.sessionToken);
+        } catch (err) {
+            console.warn('Unable to open session stream', err);
+            return () => {};
+        }
+
+        const handleClosed = (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                // Clear local session and navigate to table setup so a new guest can start a session
+                clearSession();
+                // If the server provided a qrSlug, navigate to it; otherwise, go to root
+                const qr = payload?.qrSlug || null;
+                if (qr) {
+                    navigate(`/?qr=${encodeURIComponent(qr)}`);
+                } else {
+                    navigate('/');
+                }
+            } catch (e) {
+                console.warn('Failed to handle session.closed payload', e);
+            }
+        };
+
+        source.addEventListener('session.closed', handleClosed);
+        source.onerror = (evt) => {
+            console.warn('Session SSE disconnected', evt);
+        };
+
+        return () => {
+            if (source) {
+                source.removeEventListener('session.closed', handleClosed);
+                source.close();
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session?.sessionToken]);
+
+    // If user is redirected back from email verification, refresh menu/session
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const membershipVerified = params.get('membershipVerified');
+        if (membershipVerified) {
+            const customerIdParam = params.get('customerId');
+            const restaurantIdParam = params.get('restaurantId');
+            const membershipStatusParam = params.get('membershipStatus');
+            (async () => {
+                try {
+                    const stored = loadFromStorage();
+                    // prefer sessionToken param from redirect, else in-memory, else stored
+                    const sessionTokenParam = params.get('sessionToken');
+                    const token = sessionTokenParam || session?.sessionToken || stored?.sessionToken;
+
+                    let fetchSucceeded = false;
+
+                    // If we have a token from the redirect, call fetchMenu with it and persist the returned membership
+                    if (token) {
+                        try {
+                            const res = await fetchMenu(token);
+                            const payload = res.data?.data;
+                            if (payload && payload.session) {
+                                const membership = payload.session.membership || null;
+                                const membershipStatus = payload.session.membershipStatus || (membership && membership.status) || null;
+                                // merge into stored session (if present) so we preserve restaurant/table data
+                                const next = stored || {};
+                                next.sessionToken = token;
+                                next.membership = membership;
+                                next.membershipStatus = membershipStatus;
+                                try {
+                                    saveToStorage(next);
+                                } catch (e) {
+                                    // ignore storage errors
+                                }
+                                setSession(next);
+                                fetchSucceeded = true;
+                                if (membershipStatus === 'MEMBER') {
+                                    // ensure we preserve entered customer info if payload doesn't include it
+                                    const existingCustomer = next.customer || next.customerMeta || stored?.customer || stored?.customerMeta || null;
+                                    if (existingCustomer) {
+                                        next.customer = existingCustomer;
+                                    }
+                                    updateSession({ membershipPending: false });
+                                    // Hard-reload to ensure all UI pieces pick up the new membership state
+                                    try {
+                                        const base = window.location.pathname || '/';
+                                        window.location.replace(base);
+                                        return;
+                                    } catch (e) {
+                                        // fallback to navigate
+                                        try {
+                                            navigate('/');
+                                        } catch (_) {}
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // fetchMenu might fail if the session is closed or token invalid — fall back to stored matching logic
+                            fetchSucceeded = false;
+                        }
+                    }
+
+                    // If fetch didn't succeed (no token or fetch failed), try to force membership flag if stored session matches customer & restaurant
+                    if (!fetchSucceeded && stored && customerIdParam && restaurantIdParam) {
+                        const storedCustomerId = stored.customerId || stored.customer?.id || stored.membership?.customerId || null;
+                        const storedRestaurantId = stored.restaurant?.id || stored.restaurantId || null;
+                        if (String(storedCustomerId) === String(customerIdParam) && String(storedRestaurantId) === String(restaurantIdParam)) {
+                            const forcedStatus = membershipStatusParam || 'MEMBER';
+                            // try server-side membership lookup to confirm status
+                            try {
+                                const statusRes = await (await import('../services/session.js')).getMembershipStatus({ customerId: customerIdParam, restaurantId: restaurantIdParam });
+                                const serverData = statusRes.data?.data;
+                                if (serverData && serverData.status) {
+                                    const serverStatus = serverData.status;
+                                    if (serverStatus !== forcedStatus) {
+                                        // prefer server-reported status
+                                        forcedStatus = serverStatus;
+                                    }
+                                }
+                            } catch (err) {
+                                // ignore lookup errors and proceed with forcedStatus
+                            }
+                            // ensure stored customer info and membership is applied to session so UI shows the entered name/email
+                            const customerInfo = stored.customer || stored.customerMeta || null;
+                            const existingMembership = stored.membership || null;
+                            const membershipObj = existingMembership
+                                ? { ...existingMembership, status: forcedStatus }
+                                : { status: forcedStatus, loyaltyPoints: 0, discountBalanceCents: 0 };
+
+                            updateSession({
+                                membership: membershipObj,
+                                membershipStatus: forcedStatus,
+                                customer: customerInfo
+                            });
+
+                            if (forcedStatus === 'MEMBER') {
+                                updateSession({ membershipPending: false });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // ignore overall errors
+                }
+            })();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search]);
 
     const initializeSession = useCallback(async (customerPayload) => {
         if (!qrSlug) {
@@ -264,3 +421,4 @@ export const useSession = () => {
     }
     return context;
 };
+

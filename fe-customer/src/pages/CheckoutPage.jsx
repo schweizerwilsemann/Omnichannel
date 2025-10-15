@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext.jsx';
 import { useSession } from '../context/SessionContext.jsx';
-import { placeCustomerOrder } from '../services/session.js';
+import { placeCustomerOrder, closeSession } from '../services/session.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center';
@@ -12,7 +12,7 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9c
 const CheckoutPage = () => {
     const navigate = useNavigate();
     const { cartItems, cartQuantity, totalCents, incrementItem, decrementItem, clearCart } = useCart();
-    const { session, markOrdersDirty, updateSession } = useSession();
+    const { session, markOrdersDirty, updateSession, clearSession } = useSession();
     const [placingOrder, setPlacingOrder] = useState(false);
     const discountBalanceCents = session?.membership?.discountBalanceCents ?? 0;
     const loyaltyPoints = session?.membership?.loyaltyPoints ?? 0;
@@ -174,6 +174,22 @@ const CheckoutPage = () => {
                         <div className="checkout-actions">
                             <Button variant="outline-secondary" onClick={clearCart} disabled={placingOrder}>
                                 Clear cart
+                            </Button>
+                            <Button variant="outline-danger" onClick={async () => {
+                                if (!session?.sessionToken) {
+                                    toast.error('Session expired.');
+                                    return;
+                                }
+                                try {
+                                    await closeSession({ sessionToken: session.sessionToken });
+                                } catch (err) {
+                                    // ignore errors — still clear local session
+                                }
+                                clearSession();
+                                toast.info('Session ended. Thank you!');
+                                navigate('/');
+                            }} className="me-2">
+                                End session
                             </Button>
                             <Button onClick={handlePlaceOrder} disabled={placingOrder}>
                                 {placingOrder ? (

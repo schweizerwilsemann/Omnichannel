@@ -37,7 +37,12 @@ const VerifyEmailPage = () => {
                             const menuRes = await fetchMenu(session.sessionToken);
                             const menuPayload = menuRes.data?.data;
                             if (menuPayload && menuPayload.session) {
-                                updateSession({ membership: menuPayload.session.membership || null });
+                                const membership = menuPayload.session.membership || null;
+                                const membershipStatus = menuPayload.session.membershipStatus || (membership && membership.status) || null;
+                                updateSession({ membership, membershipStatus });
+                                if (membershipStatus === 'MEMBER') {
+                                    updateSession({ membershipPending: false });
+                                }
                             }
                         } catch (e) {
                             // ignore refresh errors — user can manually refresh later

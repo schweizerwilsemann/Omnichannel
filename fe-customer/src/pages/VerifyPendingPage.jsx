@@ -18,14 +18,12 @@ const VerifyPendingPage = () => {
             const res = await fetchMenu(session.sessionToken);
             const payload = res.data?.data;
             if (payload && payload.session) {
-                // update membership info and clear pending if now MEMBER
-                updateSession({ membership: payload.session.membership || null });
-                if (payload.session.membership && payload.session.membership.loyaltyPoints !== undefined) {
-                    // clear pending if membership now present
-                    if (payload.session.membership && payload.session.membership.status === 'MEMBER') {
-                        updateSession({ membershipPending: false });
-                        toast.success('Membership verified — you can now place orders');
-                    }
+                const membership = payload.session.membership || null;
+                const membershipStatus = payload.session.membershipStatus || (membership && membership.status) || null;
+                updateSession({ membership, membershipStatus });
+                if (membershipStatus === 'MEMBER') {
+                    updateSession({ membershipPending: false });
+                    toast.success('Membership verified — you can now place orders');
                 }
             }
         } catch (err) {

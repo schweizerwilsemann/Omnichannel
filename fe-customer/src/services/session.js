@@ -6,6 +6,7 @@ export const placeCustomerOrder = (payload) => api.post('/customer/orders', payl
 export const fetchCustomerOrders = (sessionToken) => api.get('/customer/orders', { params: { sessionToken } });
 export const requestMembershipVerification = (payload) => api.post('/customer/memberships/register', payload);
 export const verifyMembershipToken = (params) => api.get('/customer/memberships/verify', { params });
+export const getMembershipStatus = (params) => api.get('/customer/memberships/status', { params });
 export const lookupTableBySlug = (qrSlug) => api.get('/customer/tables/lookup', { params: { qrSlug } });
 
 export const openOrdersStream = (sessionToken) => {
@@ -19,3 +20,4 @@ export const openOrdersStream = (sessionToken) => {
 
 export const claimLoyaltyPoints = (payload) => api.post('/customer/memberships/claim', payload);
 export const submitOrderRatings = (orderId, payload) => api.post(`/customer/orders/${orderId}/ratings`, payload);
+export const closeSession = (params) => api.post('/customer/sessions/close', null, { params });
