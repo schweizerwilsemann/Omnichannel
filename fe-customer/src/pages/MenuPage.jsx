@@ -1,16 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Spinner, Modal, Form } from 'react-bootstrap';
+import { Alert, Button, Spinner, Modal, Form, Badge, Card } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSession } from '../context/SessionContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
 import { fetchMenu, requestMembershipVerification, claimLoyaltyPoints } from '../services/session.js';
 import MenuCategory from '../components/menu/MenuCategory.jsx';
+import resolveAssetUrl from '../utils/assets.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
 
 const MenuPage = () => {
-    const { session, updateSession, loyaltyPointValueCents } = useSession();
+    const {
+        session,
+        updateSession,
+        loyaltyPointValueCents,
+        promotions,
+        promotionsLoading,
+        claimPromotionVoucher,
+        vouchers
+    } = useSession();
     const { addItem, cartQuantity, totalCents } = useCart();
     const [menuData, setMenuData] = useState({ categories: [], session: null });
     const [loadingMenu, setLoadingMenu] = useState(false);
@@ -34,6 +43,7 @@ const MenuPage = () => {
     const [claimPointsValue, setClaimPointsValue] = useState('');
     const [claimSubmitting, setClaimSubmitting] = useState(false);
     const [claimError, setClaimError] = useState(null);
+    const [claimingPromotionKey, setClaimingPromotionKey] = useState(null);
 
     // Derived loyalty values
     const loyaltyPoints = session?.membership?.loyaltyPoints || 0;
@@ -41,6 +51,7 @@ const MenuPage = () => {
     const pointValueCents = loyaltyPointValueCents || 10;
 
     const sessionToken = session?.sessionToken;
+    const availableCustomerVouchers = useMemo(() => vouchers?.available || [], [vouchers]);
 
     const loadMenu = async () => {
         if (!sessionToken) {
@@ -58,6 +69,29 @@ const MenuPage = () => {
             setMenuError(message);
         } finally {
             setLoadingMenu(false);
+        }
+    };
+
+    const handleClaimPromotion = async (promotionId, voucherId) => {
+        if (!sessionToken) {
+            toast.error('Session expired. Please refresh the page.');
+            return;
+        }
+
+        const claimKey = `${promotionId}:${voucherId || 'default'}`;
+        try {
+            setClaimingPromotionKey(claimKey);
+            const claimed = await claimPromotionVoucher({ promotionId, voucherId });
+            if (claimed?.alreadyClaimed) {
+                toast.info('This voucher is already in your wallet.');
+            } else {
+                toast.success('Voucher saved to your wallet!');
+            }
+        } catch (error) {
+            const message = error.response?.data?.message || error.message || 'Unable to claim voucher right now.';
+            toast.error(message);
+        } finally {
+            setClaimingPromotionKey(null);
         }
     };
 
@@ -298,11 +332,147 @@ const MenuPage = () => {
                                 )}
                             </div>
                         </div>
+                        {availableCustomerVouchers.length > 0 && (
+                            <div className="w-100 mt-3">
+                                <div className="text-muted small fw-semibold text-uppercase">My vouchers</div>
+                                <div className="d-flex flex-wrap gap-2 mt-2">
+                                    {availableCustomerVouchers.slice(0, 3).map((voucher) => (
+                                        <div className="border rounded px-3 py-2 bg-light" key={voucher.id}>
+                                            <div className="fw-semibold">{voucher.voucher?.code || 'Voucher'}</div>
+                                            <div className="small text-muted">
+                                                {voucher.voucher?.name || 'Saved reward'}
+                                                {voucher.expiresAt
+                                                    ? ` · Expires ${new Date(voucher.expiresAt).toLocaleDateString()}`
+                                                    : ''}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {availableCustomerVouchers.length > 3 ? (
+                                        <button type="button" className="cta-link" onClick={() => navigate('/vouchers')}>
+                                            View all
+                                        </button>
+                                    ) : null}
+                                </div>
+                            </div>
+                        )}
                     </div>
                     {discountBalanceCents > 0 && (
                         <p className="text-muted small mb-0 mt-2">
                             We will offer to apply your discount when you check out.
                         </p>
+                    )}
+                </section>
+            )}
+
+            {(promotionsLoading || promotions.length > 0) && (
+                <section className="card shadow-sm mb-4 p-3">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h2 className="h5 mb-0">Today&apos;s promotions</h2>
+                        <span className="text-muted small">Claim vouchers before they run out</span>
+                    </div>
+                    {promotionsLoading ? (
+                        <div className="d-flex justify-content-center py-4">
+                            <Spinner animation="border" size="sm" />
+                        </div>
+                    ) : promotions.length === 0 ? (
+                        <p className="text-muted mb-0">No active promotions right now. Check back soon!</p>
+                    ) : (
+                        promotions.map((promotion) => {
+                            const highlightVoucher = (promotion.vouchers || [])[0] || null;
+                            const promotionKeyBase = promotion.id;
+                            const renderClaimAction = (voucher) => {
+                                const key = `${promotionKeyBase}:${voucher.id}`;
+                                if (voucher.customerVoucher) {
+                                    return (
+                                        <Badge bg="success">Saved to wallet</Badge>
+                                    );
+                                }
+
+                                if (!isMember) {
+                                    return (
+                                        <Button
+                                            size="sm"
+                                            variant="outline-secondary"
+                                            onClick={handleMembershipOpen}
+                                        >
+                                            Join loyalty to claim
+                                        </Button>
+                                    );
+                                }
+
+                                if (!voucher.claimable) {
+                                    return <Badge bg="secondary">Not available</Badge>;
+                                }
+
+                                const isClaiming = claimingPromotionKey === key;
+                                return (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => handleClaimPromotion(promotion.id, voucher.id)}
+                                        disabled={isClaiming}
+                                    >
+                                        {isClaiming ? 'Claiming…' : 'Claim voucher'}
+                                    </Button>
+                                );
+                            };
+
+                            return (
+                                <Card className="mb-3" key={promotion.id}>
+                                    <Card.Body className="d-flex flex-column flex-lg-row gap-3">
+                                        <div className="flex-grow-1">
+                                            <div className="d-flex align-items-center gap-2 mb-2">
+                                                <h3 className="h6 mb-0">{promotion.headline || promotion.name}</h3>
+                                                <Badge bg="primary">{promotion.status}</Badge>
+                                            </div>
+                                            {promotion.description && (
+                                                <p className="text-muted mb-2">{promotion.description}</p>
+                                            )}
+                                            {highlightVoucher && (
+                                                <div className="mb-2">
+                                                    <strong>{highlightVoucher.name}</strong>
+                                                    <ul className="small text-muted mb-2 ps-3">
+                                                        {(highlightVoucher.tiers || []).map((tier) => (
+                                                            <li key={tier.id || `${tier.minSpendCents}-${tier.discountPercent}`}>
+                                                                Spend {formatPrice(tier.minSpendCents)} → {tier.discountPercent}% off
+                                                                {tier.maxDiscountCents
+                                                                    ? ` (max ${formatPrice(tier.maxDiscountCents)})`
+                                                                    : ''}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        {renderClaimAction(highlightVoucher)}
+                                                        {highlightVoucher.customerVoucher?.status && (
+                                                            <Badge bg="light" text="dark">
+                                                                {highlightVoucher.customerVoucher.status}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="text-muted small">
+                                                {highlightVoucher?.validUntil
+                                                    ? `Valid until ${new Date(highlightVoucher.validUntil).toLocaleDateString()}`
+                                                    : promotion.endsAt
+                                                        ? `Campaign ends ${new Date(promotion.endsAt).toLocaleDateString()}`
+                                                        : 'Limited time offer'}
+                                            </div>
+                                        </div>
+                                        {promotion.bannerImageUrl && (
+                                            <img
+                                                src={resolveAssetUrl(promotion.bannerImageUrl)}
+                                                alt={promotion.name}
+                                                className="rounded"
+                                                style={{
+                                                    maxWidth: '220px',
+                                                    objectFit: 'cover'
+                                                }}
+                                            />
+                                        )}
+                                    </Card.Body>
+                                </Card>
+                            );
+                        })
                     )}
                 </section>
             )}
