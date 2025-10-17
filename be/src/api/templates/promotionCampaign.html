@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{promotionName}}</title>
+        <style>
+            body {
+                font-family: Arial, Helvetica, sans-serif;
+                color: #2c2c2c;
+                margin: 0;
+                padding: 0;
+                background-color: #f7f7f9;
+            }
+            .container {
+                max-width: 640px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                padding: 32px 28px;
+            }
+            .preheader {
+                display: none !important;
+                visibility: hidden;
+                opacity: 0;
+                color: transparent;
+                height: 0;
+                width: 0;
+            }
+            .banner {
+                width: 100%;
+                border-radius: 12px;
+                overflow: hidden;
+                margin-bottom: 24px;
+            }
+            .banner img {
+                width: 100%;
+                display: block;
+            }
+            .headline {
+                font-size: 24px;
+                line-height: 1.3;
+                margin: 0 0 12px;
+                color: #111827;
+            }
+            .description {
+                font-size: 16px;
+                line-height: 1.6;
+                margin: 0 0 20px;
+                color: #374151;
+            }
+            .voucher {
+                background-color: #f3f4f6;
+                border-radius: 12px;
+                padding: 16px 20px;
+                margin-bottom: 20px;
+            }
+            .voucher h2 {
+                margin: 0 0 8px;
+                font-size: 18px;
+                color: #dc2626;
+            }
+            .cta {
+                display: inline-block;
+                padding: 12px 24px;
+                border-radius: 999px;
+                background-color: #dc2626;
+                color: #ffffff !important;
+                text-decoration: none;
+                font-weight: bold;
+            }
+            .tiers {
+                margin: 12px 0 0;
+                padding-left: 18px;
+                color: #4b5563;
+            }
+            .footer {
+                font-size: 12px;
+                color: #6b7280;
+                margin-top: 28px;
+            }
+        </style>
+    </head>
+    <body>
+        <span class="preheader">{{previewText}}</span>
+        <div class="container">
+            <p>Hi {{name}},</p>
+            {{#headline}}
+            <h1 class="headline">{{headline}}</h1>
+            {{/headline}}
+            {{#description}}
+            <p class="description">{{description}}</p>
+            {{/description}}
+
+            {{#bannerImageUrl}}
+            <div class="banner">
+                <img src="{{bannerImageUrl}}" alt="{{promotionName}}" />
+            </div>
+            {{/bannerImageUrl}}
+
+            <div class="voucher">
+                <h2>{{promotionName}}</h2>
+                {{#voucherCode}}
+                <p>Your voucher code: <strong>{{voucherCode}}</strong></p>
+                {{/voucherCode}}
+                <p>Enjoy up to <strong>{{maxDiscountPercent}}% off</strong> on this campaign.</p>
+                {{#hasTiers}}
+                <ul class="tiers">
+                    {{#tiers}}
+                    <li>Spend {{minSpend}} → {{discountPercent}}% off{{#maxDiscount}} (max {{maxDiscount}}){{/maxDiscount}}</li>
+                    {{/tiers}}
+                </ul>
+                {{/hasTiers}}
+            </div>
+
+            {{#claimUrl}}
+            <p>
+                <a class="cta" href="{{claimUrl}}">{{ctaLabel}}</a>
+            </p>
+            {{/claimUrl}}
+
+            {{#validUntil}}
+            <p><strong>Valid until:</strong> {{validUntil}}</p>
+            {{/validUntil}}
+
+            {{#legalNotice}}
+            <p class="footer">{{legalNotice}}</p>
+            {{/legalNotice}}
+
+            <p class="footer">If you have any questions, just reply to this email. We are happy to help!</p>
+        </div>
+    </body>
+</html>
