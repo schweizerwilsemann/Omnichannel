@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { startSession as startSessionApi, lookupTableBySlug, fetchMenu } from '../services/session.js';
+import {
+    startSession as startSessionApi,
+    lookupTableBySlug,
+    fetchMenu,
+    fetchCustomerPromotions,
+    fetchCustomerVouchers,
+    claimCustomerVoucher as claimVoucherApi
+} from '../services/session.js';
 import { openOrdersStream } from '../services/session.js';
 import { toast } from 'react-toastify';
 
@@ -63,11 +70,78 @@ export const SessionProvider = ({ children }) => {
     const [tableInfo, setTableInfo] = useState(null);
     const [tableLoading, setTableLoading] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [promotions, setPromotions] = useState([]);
+    const [voucherInventory, setVoucherInventory] = useState({
+        available: [],
+        redeemed: [],
+        expired: [],
+        revoked: []
+    });
+    const [promotionsLoading, setPromotionsLoading] = useState(false);
     const navigate = useNavigate();
 
     const refreshTableInfo = useCallback(() => {
         setRefreshKey((prev) => prev + 1);
     }, []);
+
+    const loadPerks = useCallback(
+        async (sessionToken) => {
+            if (!sessionToken) {
+                setPromotions([]);
+                setVoucherInventory({ available: [], redeemed: [], expired: [], revoked: [] });
+                return;
+            }
+
+            setPromotionsLoading(true);
+            try {
+                const [promotionsResponse, vouchersResponse] = await Promise.all([
+                    fetchCustomerPromotions(sessionToken),
+                    fetchCustomerVouchers(sessionToken)
+                ]);
+                const promotionsPayload = promotionsResponse.data?.data || [];
+                const voucherPayload = vouchersResponse.data?.data || {
+                    available: [],
+                    redeemed: [],
+                    expired: [],
+                    revoked: []
+                };
+                setPromotions(promotionsPayload);
+                setVoucherInventory({
+                    available: voucherPayload.available || [],
+                    redeemed: voucherPayload.redeemed || [],
+                    expired: voucherPayload.expired || [],
+                    revoked: voucherPayload.revoked || []
+                });
+            } catch (err) {
+                console.warn('Unable to load promotions for session', err);
+                setPromotions([]);
+                setVoucherInventory({ available: [], redeemed: [], expired: [], revoked: [] });
+            } finally {
+                setPromotionsLoading(false);
+            }
+        },
+        []
+    );
+
+    const claimPromotionVoucher = useCallback(
+        async ({ promotionId, voucherId, channel = 'CUSTOMER_APP' } = {}) => {
+            if (!session?.sessionToken) {
+                throw new Error('An active session is required to claim vouchers');
+            }
+
+            const response = await claimVoucherApi({
+                sessionToken: session.sessionToken,
+                promotionId,
+                voucherId,
+                channel
+            });
+
+            await loadPerks(session.sessionToken);
+
+            return response.data?.data || null;
+        },
+        [loadPerks, session?.sessionToken]
+    );
 
     useEffect(() => {
         let cancelled = false;
@@ -152,6 +226,14 @@ export const SessionProvider = ({ children }) => {
             cancelled = true;
         };
     }, [qrSlug, refreshKey]);
+
+    useEffect(() => {
+        if (session?.sessionToken) {
+            loadPerks(session.sessionToken);
+        } else {
+            loadPerks(null);
+        }
+    }, [session?.sessionToken, loadPerks]);
 
     // Listen for session-level server-sent events (session.closed) so we can react in real-time
     useEffect(() => {
@@ -362,6 +444,9 @@ export const SessionProvider = ({ children }) => {
         setOrdersVersion(0);
         setError(null);
         setStatus(tableInfo ? 'needsSetup' : 'idle');
+        setPromotions([]);
+        setVoucherInventory({ available: [], redeemed: [], expired: [], revoked: [] });
+        setPromotionsLoading(false);
     }, [tableInfo]);
 
     const markOrdersDirty = useCallback(() => {
@@ -432,7 +517,13 @@ export const SessionProvider = ({ children }) => {
         clearMembershipPending,
         ordersVersion,
         markOrdersDirty,
-        refreshTableInfo
+        refreshTableInfo,
+        promotions,
+        promotionsLoading,
+        vouchers: voucherInventory,
+        claimPromotionVoucher,
+        refreshPromotions: () => (session?.sessionToken ? loadPerks(session.sessionToken) : undefined),
+        loyaltyPointValueCents: LOYALTY_POINT_VALUE_CENTS
     };
 
     return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
