@@ -20,6 +20,10 @@ import orderItemRatingModel from './orderItemRating.model.js';
 import kdsTicketModel from './kdsTicket.model.js';
 import kdsActivityLogModel from './kdsActivityLog.model.js';
 import notificationModel from './notification.model.js';
+import promotionModel from './promotion.model.js';
+import voucherModel from './voucher.model.js';
+import voucherTierModel from './voucherTier.model.js';
+import customerVoucherModel from './customerVoucher.model.js';
 import setupAssociations from './associations.js';
 
 const models = {
@@ -44,7 +48,11 @@ const models = {
     OrderItemRating: orderItemRatingModel(sequelize),
     KdsTicket: kdsTicketModel(sequelize),
     KdsActivityLog: kdsActivityLogModel(sequelize),
-    Notification: notificationModel(sequelize)
+    Notification: notificationModel(sequelize),
+    Promotion: promotionModel(sequelize),
+    Voucher: voucherModel(sequelize),
+    VoucherTier: voucherTierModel(sequelize),
+    CustomerVoucher: customerVoucherModel(sequelize)
 };
 
 setupAssociations(models);
