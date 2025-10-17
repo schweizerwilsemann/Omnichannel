@@ -22,7 +22,11 @@ const setupAssociations = (models) => {
     KdsTicket,
         KdsActivityLog,
         CustomerVerificationToken,
-        Notification
+        Notification,
+        Promotion,
+        Voucher,
+        VoucherTier,
+        CustomerVoucher
     } = models;
 
     User.hasOne(UserCredential, { foreignKey: 'user_id', as: 'credential' });
@@ -117,6 +121,33 @@ const setupAssociations = (models) => {
         as: 'adminRecipient',
         scope: { recipient_type: RECIPIENT_TYPE.ADMIN }
     });
+
+    Restaurant.hasMany(Promotion, { foreignKey: 'restaurant_id', as: 'promotions' });
+    Promotion.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+    Promotion.hasMany(Voucher, { foreignKey: 'promotion_id', as: 'vouchers' });
+    Voucher.belongsTo(Promotion, { foreignKey: 'promotion_id', as: 'promotion' });
+
+    Restaurant.hasMany(Voucher, { foreignKey: 'restaurant_id', as: 'vouchers' });
+    Voucher.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+    Voucher.hasMany(VoucherTier, { foreignKey: 'voucher_id', as: 'tiers' });
+    VoucherTier.belongsTo(Voucher, { foreignKey: 'voucher_id', as: 'voucher' });
+
+    Voucher.hasMany(CustomerVoucher, { foreignKey: 'voucher_id', as: 'claims' });
+    CustomerVoucher.belongsTo(Voucher, { foreignKey: 'voucher_id', as: 'voucher' });
+
+    Promotion.hasMany(CustomerVoucher, { foreignKey: 'promotion_id', as: 'claims' });
+    CustomerVoucher.belongsTo(Promotion, { foreignKey: 'promotion_id', as: 'promotion' });
+
+    Customer.hasMany(CustomerVoucher, { foreignKey: 'customer_id', as: 'vouchers' });
+    CustomerVoucher.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+
+    Restaurant.hasMany(CustomerVoucher, { foreignKey: 'restaurant_id', as: 'customerVouchers' });
+    CustomerVoucher.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+    Order.belongsTo(CustomerVoucher, { foreignKey: 'customer_voucher_id', as: 'customerVoucher' });
+    CustomerVoucher.hasMany(Order, { foreignKey: 'customer_voucher_id', as: 'orders' });
 };
 
 export default setupAssociations;
