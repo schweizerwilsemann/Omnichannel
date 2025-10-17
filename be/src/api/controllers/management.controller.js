@@ -7,7 +7,12 @@ import {
     updateCustomerMembership,
     listTables,
     createTable,
-    updateTable
+    updateTable,
+    listPromotions,
+    getPromotion,
+    createPromotion,
+    updatePromotion,
+    dispatchPromotionEmails
 } from '../services/management.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
@@ -98,6 +103,51 @@ export const updateTableController = async (req, res) => {
     }
 };
 
+export const listPromotionsController = async (req, res) => {
+    try {
+        const data = await listPromotions(getRestaurantContext(req));
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to load promotions', 400);
+    }
+};
+
+export const getPromotionController = async (req, res) => {
+    try {
+        const data = await getPromotion(getRestaurantContext(req), req.params.promotionId);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to load promotion', 400);
+    }
+};
+
+export const createPromotionController = async (req, res) => {
+    try {
+        const data = await createPromotion(getRestaurantContext(req), req.body);
+        return successResponse(res, data, 201);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to create promotion', 400);
+    }
+};
+
+export const updatePromotionController = async (req, res) => {
+    try {
+        const data = await updatePromotion(getRestaurantContext(req), req.params.promotionId, req.body);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to update promotion', 400);
+    }
+};
+
+export const dispatchPromotionEmailsController = async (req, res) => {
+    try {
+        const data = await dispatchPromotionEmails(getRestaurantContext(req), req.params.promotionId);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to dispatch promotion emails', 400);
+    }
+};
+
 export default {
     getMenuCatalogController,
     createMenuItemController,
@@ -107,5 +157,10 @@ export default {
     updateCustomerMembershipController,
     listTablesController,
     createTableController,
-    updateTableController
+    updateTableController,
+    listPromotionsController,
+    getPromotionController,
+    createPromotionController,
+    updatePromotionController,
+    dispatchPromotionEmailsController
 };
