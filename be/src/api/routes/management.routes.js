@@ -7,7 +7,9 @@ import {
     customerMembershipCreateSchema,
     customerMembershipUpdateSchema,
     tableCreateSchema,
-    tableUpdateSchema
+    tableUpdateSchema,
+    promotionCreateSchema,
+    promotionUpdateSchema
 } from '../validations/management.validation.js';
 import {
     getMenuCatalogController,
@@ -18,7 +20,12 @@ import {
     updateCustomerMembershipController,
     listTablesController,
     createTableController,
-    updateTableController
+    updateTableController,
+    listPromotionsController,
+    getPromotionController,
+    createPromotionController,
+    updatePromotionController,
+    dispatchPromotionEmailsController
 } from '../controllers/management.controller.js';
 
 const router = Router();
@@ -54,5 +61,16 @@ router.patch(
     validationMiddleware(tableUpdateSchema),
     updateTableController
 );
+
+router.get('/promotions', authenticateAdmin(), listPromotionsController);
+router.get('/promotions/:promotionId', authenticateAdmin(), getPromotionController);
+router.post('/promotions', authenticateAdmin(), validationMiddleware(promotionCreateSchema), createPromotionController);
+router.patch(
+    '/promotions/:promotionId',
+    authenticateAdmin(),
+    validationMiddleware(promotionUpdateSchema),
+    updatePromotionController
+);
+router.post('/promotions/:promotionId/dispatch', authenticateAdmin(), dispatchPromotionEmailsController);
 
 export default router;
