@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Spinner, Form } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -13,18 +13,71 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9c
 const CheckoutPage = () => {
     const navigate = useNavigate();
     const { cartItems, cartQuantity, totalCents, incrementItem, decrementItem, clearCart } = useCart();
-    const { session, markOrdersDirty, updateSession, clearSession } = useSession();
+    const { session, markOrdersDirty, updateSession, clearSession, vouchers, refreshPromotions } = useSession();
     const [placingOrder, setPlacingOrder] = useState(false);
     const discountBalanceCents = session?.membership?.discountBalanceCents ?? 0;
     const loyaltyPoints = session?.membership?.loyaltyPoints ?? 0;
     const [useDiscount, setUseDiscount] = useState(discountBalanceCents > 0);
-    const discountToApply = useDiscount ? Math.min(discountBalanceCents, totalCents) : 0;
-    const finalTotalCents = Math.max(totalCents - discountToApply, 0);
+    const [selectedVoucherId, setSelectedVoucherId] = useState('');
+    const availableCustomerVouchers = useMemo(() => vouchers?.available || [], [vouchers]);
+    const selectedVoucher = useMemo(
+        () => availableCustomerVouchers.find((voucher) => voucher.id === selectedVoucherId) || null,
+        [availableCustomerVouchers, selectedVoucherId]
+    );
+    const calculatedDiscounts = useMemo(() => {
+        if (cartItems.length === 0) {
+            return { voucher: 0, loyalty: 0 };
+        }
+        const cap = Math.floor(totalCents * 0.5);
+        let voucherDiscount = 0;
+        if (selectedVoucher) {
+            const tiers = selectedVoucher.voucher?.tiers || [];
+            let target = null;
+            tiers.forEach((tier) => {
+                if (totalCents >= tier.minSpendCents) {
+                    if (!target || tier.minSpendCents >= target.minSpendCents) {
+                        target = tier;
+                    }
+                }
+            });
+            if (target) {
+                const percent = Number(target.discountPercent) || 0;
+                let projected = Math.floor((percent / 100) * totalCents);
+                if (target.maxDiscountCents) {
+                    projected = Math.min(projected, target.maxDiscountCents);
+                }
+                voucherDiscount = Math.min(projected, cap);
+            }
+        }
+
+        let loyaltyDiscount = 0;
+        if (useDiscount && discountBalanceCents > 0) {
+            const remainingCap = Math.max(cap - voucherDiscount, 0);
+            loyaltyDiscount = Math.min(discountBalanceCents, remainingCap);
+        }
+
+        return { voucher: voucherDiscount, loyalty: loyaltyDiscount };
+    }, [cartItems.length, totalCents, selectedVoucher, useDiscount, discountBalanceCents]);
+    const voucherDiscountPreview = calculatedDiscounts.voucher;
+    const discountToApply = calculatedDiscounts.loyalty;
+    const finalTotalCents = Math.max(totalCents - voucherDiscountPreview - discountToApply, 0);
     useEffect(() => {
         if (discountBalanceCents === 0 && useDiscount) {
             setUseDiscount(false);
         }
     }, [discountBalanceCents, useDiscount]);
+
+    useEffect(() => {
+        if (selectedVoucher?.voucher?.allowStackWithPoints === false && useDiscount) {
+            setUseDiscount(false);
+        }
+    }, [selectedVoucher, useDiscount]);
+
+    useEffect(() => {
+        if (selectedVoucherId && !availableCustomerVouchers.find((voucher) => voucher.id === selectedVoucherId)) {
+            setSelectedVoucherId('');
+        }
+    }, [availableCustomerVouchers, selectedVoucherId]);
 
 
 
@@ -44,10 +97,15 @@ const CheckoutPage = () => {
 
         try {
             setPlacingOrder(true);
+            const allowLoyalty =
+                useDiscount &&
+                discountBalanceCents > 0 &&
+                !(selectedVoucher && selectedVoucher.voucher?.allowStackWithPoints === false);
             const response = await placeCustomerOrder({
                 sessionToken: session.sessionToken,
                 items: cartItems.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
-                applyLoyaltyDiscount: useDiscount && discountBalanceCents > 0
+                applyLoyaltyDiscount: allowLoyalty,
+                customerVoucherId: selectedVoucherId || undefined
             });
             const payload = response.data?.data;
             if (payload?.membership) {
@@ -55,9 +113,13 @@ const CheckoutPage = () => {
             }
             const discountAppliedCents = payload?.discountAppliedCents ?? 0;
             const earnedPoints = payload?.earnedLoyaltyPoints ?? 0;
+            const voucherDiscountCents = payload?.voucherDiscountCents ?? 0;
             const messageParts = ['Order placed! We will keep you posted.'];
             if (discountAppliedCents > 0) {
                 messageParts.push(`We applied ${formatPrice(discountAppliedCents)} from your loyalty bank.`);
+            }
+            if (voucherDiscountCents > 0) {
+                messageParts.push(`Your voucher saved ${formatPrice(voucherDiscountCents)} this round.`);
             }
             if (earnedPoints > 0) {
                 messageParts.push(`You earned ${earnedPoints} point${earnedPoints === 1 ? '' : 's'}.`);
@@ -65,6 +127,13 @@ const CheckoutPage = () => {
             toast.success(messageParts.join(' '));
             clearCart();
             markOrdersDirty();
+            setSelectedVoucherId('');
+            if (typeof refreshPromotions === 'function') {
+                const maybeRefresh = refreshPromotions();
+                if (maybeRefresh && typeof maybeRefresh.catch === 'function') {
+                    maybeRefresh.catch(() => {});
+                }
+            }
             navigate('/orders');
         } catch (error) {
             const message = error.response?.data?.message || error.message || 'Unable to place order';
@@ -146,15 +215,50 @@ const CheckoutPage = () => {
                                 <span>Subtotal</span>
                                 <span>{formatPrice(totalCents)}</span>
                             </div>
+                            {availableCustomerVouchers.length > 0 && (
+                                <div className="checkout-summary__row flex-column align-items-start">
+                                    <Form.Label className="small text-muted mb-1">Voucher</Form.Label>
+                                    <Form.Select
+                                        size="sm"
+                                        value={selectedVoucherId}
+                                        onChange={(event) => setSelectedVoucherId(event.target.value)}
+                                    >
+                                        <option value="">Don&apos;t apply</option>
+                                        {availableCustomerVouchers.map((voucher) => (
+                                            <option key={voucher.id} value={voucher.id}>
+                                                {(voucher.voucher?.code || 'Voucher')} · {voucher.voucher?.name || 'Saved reward'}
+                                                {voucher.expiresAt
+                                                    ? ` (expires ${new Date(voucher.expiresAt).toLocaleDateString()})`
+                                                    : ''}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                    {selectedVoucher && selectedVoucher.voucher?.allowStackWithPoints === false && (
+                                        <span className="text-muted small mt-1">
+                                            This voucher cannot be combined with loyalty credits.
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {voucherDiscountPreview > 0 && (
+                                <div className="checkout-summary__row">
+                                    <span>Voucher</span>
+                                    <span>-{formatPrice(voucherDiscountPreview)}</span>
+                                </div>
+                            )}
                             {discountBalanceCents > 0 && (
                                 <div className="checkout-summary__row flex-column align-items-start">
-                                    <Form.Check
-                                        type="switch"
-                                        id="apply-loyalty-discount"
-                                        label={`Apply loyalty discount (banked)`}
-                                        checked={useDiscount}
-                                        onChange={(event) => setUseDiscount(event.target.checked)}
-                                    />
+                                <Form.Check
+                                    type="switch"
+                                    id="apply-loyalty-discount"
+                                    label={`Apply loyalty discount (banked)`}
+                                    checked={useDiscount}
+                                    disabled={
+                                        discountBalanceCents === 0 ||
+                                        (selectedVoucher && selectedVoucher.voucher?.allowStackWithPoints === false)
+                                    }
+                                    onChange={(event) => setUseDiscount(event.target.checked)}
+                                />
                                     {loyaltyPoints > 0 && (
                                         <span className="text-muted small">{loyaltyPoints} point{loyaltyPoints === 1 ? '' : 's'} available</span>
                                     )}
@@ -162,7 +266,7 @@ const CheckoutPage = () => {
                             )}
                             {discountToApply > 0 && (
                                 <div className="checkout-summary__row">
-                                    <span>Discount</span>
+                                    <span>Loyalty discount</span>
                                     <span>-{formatPrice(discountToApply)}</span>
                                 </div>
                             )}
