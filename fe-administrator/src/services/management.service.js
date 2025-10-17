@@ -13,6 +13,12 @@ export const fetchTables = (params = {}) => api.get('/management/tables', { para
 export const createTable = (payload) => api.post('/management/tables', payload);
 export const updateTable = (tableId, payload) => api.patch(`/management/tables/${tableId}`, payload);
 
+export const fetchPromotions = () => api.get('/management/promotions');
+export const fetchPromotionById = (promotionId) => api.get(`/management/promotions/${promotionId}`);
+export const createPromotion = (payload) => api.post('/management/promotions', payload);
+export const updatePromotion = (promotionId, payload) => api.patch(`/management/promotions/${promotionId}`, payload);
+export const dispatchPromotionEmails = (promotionId) => api.post(`/management/promotions/${promotionId}/dispatch`);
+
 export default {
     fetchMenuCatalog,
     createMenuItem,
@@ -22,5 +28,10 @@ export default {
     updateCustomerMembership,
     fetchTables,
     createTable,
-    updateTable
+    updateTable,
+    fetchPromotions,
+    fetchPromotionById,
+    createPromotion,
+    updatePromotion,
+    dispatchPromotionEmails
 };
