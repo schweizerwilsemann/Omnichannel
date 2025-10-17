@@ -12,11 +12,18 @@ import CheckoutPage from './pages/CheckoutPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
 import VerifyPendingPage from './pages/VerifyPendingPage.jsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
+import VoucherClaimPage from './pages/VoucherClaimPage.jsx';
+import VouchersPage from './pages/VouchersPage.jsx';
 
 const AppContent = () => {
     const location = useLocation();
     const { status, error, loading, session, qrSlug, refreshTableInfo } = useSession();
+    const isVoucherClaimRoute = location.pathname === '/claim-voucher';
     const isVerificationRoute = location.pathname === '/customer/memberships/verify';
+
+    if (isVoucherClaimRoute) {
+        return <VoucherClaimPage />;
+    }
     if (isVerificationRoute && (!session || status !== 'ready')) {
         return (
             <div className="app-shell d-flex flex-column">
@@ -67,6 +74,7 @@ const AppContent = () => {
                         <Route path="/" element={<MenuPage />} />
                         <Route path="/checkout" element={<CheckoutPage />} />
                         <Route path="/orders" element={<OrdersPage />} />
+                        <Route path="/vouchers" element={<VouchersPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </main>

@@ -16,6 +16,9 @@ const BottomNav = () => {
             <NavLink to="/orders" className="customer-bottom-nav__link">
                 Orders
             </NavLink>
+            <NavLink to="/vouchers" className="customer-bottom-nav__link">
+                Vouchers
+            </NavLink>
         </nav>
     );
 };

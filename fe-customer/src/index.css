@@ -210,6 +210,50 @@ body {
     color: #fff;
 }
 
+.cta-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--brand-dark);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.vouchers-page {
+    padding-bottom: 96px;
+}
+
+.voucher-card {
+    border-radius: var(--radius-md);
+}
+
+.voucher-card__title {
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+.voucher-card__code {
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+}
+
+.voucher-card__tiers {
+    background: rgba(99, 102, 241, 0.05);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+
+.voucher-card__tier-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9rem;
+}
+
 .menu-section {
     display: flex;
     flex-direction: column;
