@@ -38,6 +38,20 @@ The first boot synchronises Sequelize models with the database (`sequelize.sync(
 
 All customer-facing ordering flows are unauthenticated and tracked via `guest_sessions` tokens allocated when a QR code is scanned.
 
+## Running migrations manually
+
+The backend uses hand-written Sequelize migration files stored in `be/migrations`. To apply a specific migration without wiring up the full Sequelize CLI, use the helper script:
+
+```bash
+# From the be/ directory
+pnpm run migrate 008-create-promotions-and-vouchers.js
+
+# To roll back the same migration
+pnpm run migrate 008-create-promotions-and-vouchers.js -- --down
+```
+
+The script loads `be/.env`, connects with the configured database credentials, and runs the selected migration's `up` (default) or `down` function. Ensure the DB user has permission to alter schema objects before running it.
+
 ## Customer API
 
 QR scans create guest sessions that drive the customer ordering flow. Key endpoints under `/api/v1/customer` include:

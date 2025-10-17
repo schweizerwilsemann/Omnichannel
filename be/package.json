@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "bootstrap:owner": "node src/scripts/bootstrapOwner.js",
+    "migrate": "node src/scripts/runMigration.js",
     "seed": "node seeders/index.js",
     "lint": "eslint .",
     "test": "jest"
