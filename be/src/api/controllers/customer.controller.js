@@ -9,7 +9,11 @@ import {
     getActiveSessionByToken,
     closeSessionByToken,
     claimLoyaltyPoints,
-    submitOrderRatings
+    submitOrderRatings,
+    listActivePromotions,
+    listCustomerVouchers,
+    claimPromotionVoucher,
+    claimPromotionVoucherByToken
 } from '../services/customer.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
@@ -81,6 +85,48 @@ export const getActiveSessionController = async (req, res) => {
     } catch (error) {
         logger.error('Failed to load active session', { message: error.message });
         return errorResponse(res, error.message || 'Unable to load active session', 400);
+    }
+};
+
+export const listPromotionsController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const promotions = await listActivePromotions(sessionToken);
+        return successResponse(res, promotions, 200);
+    } catch (error) {
+        logger.error('Failed to load active promotions', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load promotions', 400);
+    }
+};
+
+export const listCustomerVouchersController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const vouchers = await listCustomerVouchers(sessionToken);
+        return successResponse(res, vouchers, 200);
+    } catch (error) {
+        logger.error('Failed to load customer vouchers', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load vouchers', 400);
+    }
+};
+
+export const claimVoucherController = async (req, res) => {
+    try {
+        const result = await claimPromotionVoucher(req.body.sessionToken, req.body);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to claim promotion voucher', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to claim voucher', 400);
+    }
+};
+
+export const claimVoucherByTokenController = async (req, res) => {
+    try {
+        const result = await claimPromotionVoucherByToken(req.body.token, req.body);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to claim promotion voucher via token', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to claim voucher', 400);
     }
 };
 
