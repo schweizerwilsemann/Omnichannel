@@ -1,4 +1,4 @@
-    export const TABLES = {
+export const TABLES = {
     USERS: 'users',
     USER_CREDENTIALS: 'user_credentials',
     ADMIN_SESSIONS: 'admin_sessions',
@@ -19,8 +19,12 @@
     ORDER_ITEM_RATINGS: 'order_item_ratings',
     KDS_TICKETS: 'kds_tickets',
     KDS_ACTIVITY_LOGS: 'kds_activity_logs',
-    NOTIFICATIONS: 'notifications'
-};  
+    NOTIFICATIONS: 'notifications',
+    PROMOTIONS: 'promotions',
+    VOUCHERS: 'vouchers',
+    VOUCHER_TIERS: 'voucher_tiers',
+    CUSTOMER_VOUCHERS: 'customer_vouchers'
+};
 
 export const USER_ROLES = Object.freeze({ OWNER: 'OWNER', MANAGER: 'MANAGER' });
 export const USER_STATUS = Object.freeze({ ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE' });
@@ -41,7 +45,11 @@ export const KDS_ACTIONS = Object.freeze({ ACCEPT: 'ACCEPT', MARK_READY: 'MARK_R
 export const ACTOR_TYPE = Object.freeze({ USER: 'USER', AUTO: 'AUTO' });
 export const NOTIFICATION_STATUS = Object.freeze({ PENDING: 'PENDING', SENT: 'SENT', FAILED: 'FAILED' });
 export const NOTIFICATION_CHANNEL = Object.freeze({ PUSH: 'PUSH', EMAIL: 'EMAIL', SMS: 'SMS' });
-export const EMAIL_ACTIONS = Object.freeze({ ACCOUNT_CREATED: 'account-created', CUSTOMER_VERIFY_MEMBERSHIP: 'customer-verify-membership' });
+export const EMAIL_ACTIONS = Object.freeze({
+    ACCOUNT_CREATED: 'account-created',
+    CUSTOMER_VERIFY_MEMBERSHIP: 'customer-verify-membership',
+    PROMOTION_CAMPAIGN: 'promotion-campaign'
+});
 export const RECIPIENT_TYPE = Object.freeze({ CUSTOMER: 'CUSTOMER', ADMIN: 'ADMIN' });
 export const SECURITY_EVENT_TYPES = Object.freeze({
     LOGIN_SUCCESS: 'LOGIN_SUCCESS',
@@ -51,4 +59,29 @@ export const SECURITY_EVENT_TYPES = Object.freeze({
     TOKEN_REVOKED: 'TOKEN_REVOKED'
 });
 export const INVITATION_STATUS = Object.freeze({ PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', EXPIRED: 'EXPIRED', REVOKED: 'REVOKED' });
+
+export const PROMOTION_STATUS = Object.freeze({
+    DRAFT: 'DRAFT',
+    SCHEDULED: 'SCHEDULED',
+    ACTIVE: 'ACTIVE',
+    EXPIRED: 'EXPIRED',
+    ARCHIVED: 'ARCHIVED'
+});
+
+export const VOUCHER_STATUS = Object.freeze({
+    ACTIVE: 'ACTIVE',
+    INACTIVE: 'INACTIVE'
+});
+
+export const CUSTOMER_VOUCHER_STATUS = Object.freeze({
+    AVAILABLE: 'AVAILABLE',
+    REDEEMED: 'REDEEMED',
+    EXPIRED: 'EXPIRED',
+    REVOKED: 'REVOKED'
+});
+
+export const DISCOUNT_TYPES = Object.freeze({
+    PERCENTAGE: 'PERCENTAGE',
+    FIXED: 'FIXED'
+});
 
