@@ -8,6 +8,12 @@ export const requestMembershipVerification = (payload) => api.post('/customer/me
 export const verifyMembershipToken = (params) => api.get('/customer/memberships/verify', { params });
 export const getMembershipStatus = (params) => api.get('/customer/memberships/status', { params });
 export const lookupTableBySlug = (qrSlug) => api.get('/customer/tables/lookup', { params: { qrSlug } });
+export const fetchCustomerPromotions = (sessionToken) =>
+    api.get('/customer/promotions', { params: { sessionToken } });
+export const fetchCustomerVouchers = (sessionToken) =>
+    api.get('/customer/vouchers', { params: { sessionToken } });
+export const claimCustomerVoucher = (payload) => api.post('/customer/vouchers/claim', payload);
+export const claimVoucherByToken = (payload) => api.post('/customer/vouchers/email-claim', payload);
 
 export const openOrdersStream = (sessionToken) => {
     if (!sessionToken) {
