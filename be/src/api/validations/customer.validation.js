@@ -32,7 +32,10 @@ export const placeOrderSchema = Joi.object({
         .min(1)
         .required(),
     specialRequest: Joi.string().max(1000).allow(null, '').optional(),
-    applyLoyaltyDiscount: Joi.boolean().optional().default(false)
+    applyLoyaltyDiscount: Joi.boolean().optional().default(false),
+    loyaltyPointsToRedeem: Joi.number().integer().min(0).optional(),
+    customerVoucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
+    voucherCode: Joi.string().max(120).allow(null, '').optional()
 });
 
 export const membershipRegistrationSchema = Joi.object({
@@ -62,6 +65,19 @@ export const qrSlugQuerySchema = Joi.object({
 export const loyaltyClaimSchema = Joi.object({
     sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
     points: Joi.number().integer().min(1).required()
+});
+
+export const voucherClaimSchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    promotionId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
+    voucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
+    channel: Joi.string().max(40).allow(null, '').default('CUSTOMER_APP')
+}).or('promotionId', 'voucherId');
+
+export const voucherEmailClaimSchema = Joi.object({
+    token: Joi.string().min(10).required(),
+    promotionId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
+    voucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional()
 });
 
 export const orderRatingSchema = Joi.object({
