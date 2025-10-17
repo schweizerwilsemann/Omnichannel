@@ -102,6 +102,96 @@ This document captures the end-to-end capabilities of the Omnichannel QR dining 
 3. **Additional Pages**
    - Placeholder dashboard, asset management, and auth utility pages scaffolded for future expansion.
 
+### Promotion Email Campaigns
+
+- Build your campaign under **Management → Promotions** in the admin console. Each promotion should include at least one active voucher so recipients have a tangible benefit.
+- Once ready, choose **Send campaign email**. The UI calls `POST /api/v1/management/promotions/:promotionId/dispatch`, which loads the promotion, verifies voucher inventory, and targets restaurant members who have opted into email.
+- Only `RestaurantCustomer` records with `MEMBER` status and a non-null email address are contacted. The response echoes how many emails were attempted, sent, and failed for analytics in the UI.
+- Every email carries a signed claim link (`/claim-voucher?token=…`). Guests can tap it from their inbox to add the highlighted voucher to their bag immediately—no QR code required.
+
+```js
+// be/src/api/services/management.service.js
+export const dispatchPromotionEmails = async (restaurantIds = [], promotionId) => {
+    const promotionRecord = await loadPromotionForRestaurants(promotionId, restaurantIds);
+    const statsMap = await fetchVoucherStats((promotionRecord.vouchers || []).map((voucher) => voucher.id));
+    const promotion = formatPromotionAdmin(promotionRecord, statsMap);
+
+    if (!promotion || (promotion.vouchers || []).length === 0) {
+        throw new Error('Promotion has no vouchers configured');
+    }
+
+    const memberships = await RestaurantCustomer.findAll({
+        where: { restaurantId: promotion.restaurantId, status: MEMBERSHIP_STATUS.MEMBER },
+        include: [{ model: Customer, as: 'customer', required: true, where: { email: { [Op.ne]: null } } }]
+    });
+
+    const urlSanitizer = /\/+$/;
+    const baseUrl = (env.app.customerAppUrl || env.app.appUrl || 'http://localhost:3030').replace(urlSanitizer, '');
+    const featuredVoucher = promotion.vouchers[0];
+    const maxDiscountPercent = promotion.vouchers.reduce((acc, voucher) => {
+        const voucherMax = (voucher.tiers || []).reduce(
+            (tierAcc, tier) => Math.max(tierAcc, Number(tier.discountPercent) || 0),
+            0
+        );
+        return Math.max(acc, voucherMax);
+    }, 0);
+
+    const recipients = memberships.filter((membership) => membership.customer?.email);
+    if (recipients.length === 0) {
+        return { promotion, attempted: 0, sent: 0, failed: 0 };
+    }
+
+    const emailResults = await Promise.allSettled(
+        recipients.map((membership) => {
+            const customer = membership.customer;
+            const name = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim() || customer.email || 'Valued guest';
+            const claimToken = signPromotionClaimToken({
+                restaurantId: promotion.restaurantId,
+                promotionId: promotion.id,
+                voucherId: featuredVoucher?.id || null,
+                customerId: membership.customerId,
+                membershipId: membership.id,
+                email: customer.email
+            });
+            const claimUrl = `${baseUrl}/claim-voucher?token=${encodeURIComponent(claimToken)}`;
+            const tiers = (featuredVoucher?.tiers || []).map((tier) => ({
+                minSpend: formatCurrency(tier.minSpendCents),
+                discountPercent: tier.discountPercent,
+                maxDiscount: tier.maxDiscountCents ? formatCurrency(tier.maxDiscountCents) : null
+            }));
+            const hasTiers = tiers.length > 0;
+
+            return sendEmail(
+                {
+                    name,
+                    emailSubject: promotion.emailSubject,
+                    emailPreviewText: promotion.emailPreviewText,
+                    promotionName: promotion.name,
+                    headline: promotion.headline,
+                    description: promotion.description,
+                    bannerImageUrl: promotion.bannerImageUrl,
+                    ctaLabel: promotion.ctaLabel || 'Claim voucher',
+                    claimUrl,
+                    voucherCode: featuredVoucher?.code || '',
+                    tiers,
+                    hasTiers,
+                    maxDiscountPercent,
+                    legalNotice: `Discounts are capped at ${MAX_LEGAL_DISCOUNT_PERCENT}% per transaction.`,
+                    validUntil: featuredVoucher?.validUntil || promotion.endsAt || null
+                },
+                customer.email,
+                EMAIL_ACTIONS.PROMOTION_CAMPAIGN
+            );
+        })
+    );
+
+    const sent = emailResults.filter((entry) => entry.status === 'fulfilled').length;
+    const failed = emailResults.length - sent;
+
+    return { promotion, attempted: emailResults.length, sent, failed };
+};
+```
+
 ### Tech Stack
 
 - React 18, Redux Toolkit, React-Bootstrap, Toastify.
