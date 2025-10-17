@@ -52,6 +52,32 @@ const getEmailData = (action, payload) => {
                 html: Mustache.render(template, view)
             };
         }
+        case EMAIL_ACTIONS.PROMOTION_CAMPAIGN: {
+            const template = readTemplate('promotionCampaign.html');
+            const fullName = (payload.name || '').trim() || 'there';
+            const subject = payload.emailSubject || `New offer from ${payload.promotionName || 'our team'}`;
+            const previewText = payload.emailPreviewText || `Claim your voucher for ${payload.promotionName || 'our latest promotion'}`;
+            const view = {
+                name: fullName,
+                promotionName: payload.promotionName || 'Special promotion',
+                headline: payload.headline || '',
+                description: payload.description || '',
+                bannerImageUrl: payload.bannerImageUrl || '',
+                ctaLabel: payload.ctaLabel || 'Claim voucher',
+                claimUrl: payload.claimUrl,
+                voucherCode: payload.voucherCode || '',
+                maxDiscountPercent: payload.maxDiscountPercent || 0,
+                tiers: Array.isArray(payload.tiers) ? payload.tiers : [],
+                legalNotice: payload.legalNotice || '',
+                validUntil: payload.validUntil ? new Date(payload.validUntil).toDateString() : null,
+                previewText
+            };
+
+            return {
+                subject,
+                html: Mustache.render(template, view)
+            };
+        }
         default:
             throw new Error(`Unsupported email action: ${action}`);
     }
