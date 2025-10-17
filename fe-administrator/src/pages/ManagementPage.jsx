@@ -15,11 +15,13 @@ import {
 } from '../services/management.service.js';
 import { uploadAsset as uploadAssetFile } from '../services/asset.service.js';
 import appConfig from '../config/appConfig.js';
+import PromotionsPanel from '../components/promotions/PromotionsPanel.jsx';
 
 const MANAGEMENT_TABS = Object.freeze({
     MENU: 'menu',
     CUSTOMERS: 'customers',
-    TABLES: 'tables'
+    TABLES: 'tables',
+    PROMOTIONS: 'promotions'
 });
 
 const TABLE_STATUS_VARIANTS = Object.freeze({
@@ -1359,8 +1361,11 @@ const ManagementPage = () => {
                                 </Card.Body>
                             </Card>
                         </div>
-                    </Tab>
-                </Tabs>
+            </Tab>
+            <Tab eventKey={MANAGEMENT_TABS.PROMOTIONS} title="Promotions">
+                <PromotionsPanel />
+            </Tab>
+        </Tabs>
             </div>
         </MainLayout>
     );
