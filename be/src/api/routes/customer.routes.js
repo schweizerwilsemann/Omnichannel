@@ -10,7 +10,11 @@ import {
     registerMembershipController,
     verifyMembershipController,
     getMembershipStatusController,
-    getActiveSessionController
+    getActiveSessionController,
+    listPromotionsController,
+    listCustomerVouchersController,
+    claimVoucherController,
+    claimVoucherByTokenController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -19,7 +23,9 @@ import {
     membershipRegistrationSchema,
     membershipVerifySchema,
     membershipStatusQuerySchema,
-    qrSlugQuerySchema
+    qrSlugQuerySchema,
+    voucherClaimSchema,
+    voucherEmailClaimSchema
 } from '../validations/customer.validation.js';
 
 const router = Router();
@@ -31,6 +37,10 @@ router.get('/memberships/verify', validationMiddleware(membershipVerifySchema, '
 router.get('/memberships/status', validationMiddleware(membershipStatusQuerySchema, 'query'), getMembershipStatusController);
 router.get('/sessions/active', validationMiddleware(sessionTokenQuerySchema, 'query'), getActiveSessionController);
 router.get('/menu', validationMiddleware(sessionTokenQuerySchema, 'query'), getMenuController);
+router.get('/promotions', validationMiddleware(sessionTokenQuerySchema, 'query'), listPromotionsController);
+router.get('/vouchers', validationMiddleware(sessionTokenQuerySchema, 'query'), listCustomerVouchersController);
+router.post('/vouchers/claim', validationMiddleware(voucherClaimSchema), claimVoucherController);
+router.post('/vouchers/email-claim', validationMiddleware(voucherEmailClaimSchema), claimVoucherByTokenController);
 router.post('/orders', validationMiddleware(placeOrderSchema), placeOrderController);
 router.get('/orders/stream', validationMiddleware(sessionTokenQuerySchema, 'query'), streamCustomerOrdersController);
 router.get('/orders', validationMiddleware(sessionTokenQuerySchema, 'query'), listOrdersController);
