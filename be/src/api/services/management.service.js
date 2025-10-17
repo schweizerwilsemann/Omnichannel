@@ -1,7 +1,18 @@
-import { Op } from 'sequelize';
+import { Op, fn, col } from 'sequelize';
 import models from '../models/index.js';
-import { MEMBERSHIP_STATUS, TABLE_STATUS } from '../utils/common.js';
+import {
+    MEMBERSHIP_STATUS,
+    TABLE_STATUS,
+    PROMOTION_STATUS,
+    VOUCHER_STATUS,
+    DISCOUNT_TYPES,
+    CUSTOMER_VOUCHER_STATUS,
+    EMAIL_ACTIONS
+} from '../utils/common.js';
 import { normalizeAssetUrl } from './storage.service.js';
+import env from '../../config/env.js';
+import { sendEmail } from './email.service.js';
+import { signPromotionClaimToken } from '../utils/promotionTokens.js';
 
 const {
     sequelize,
@@ -10,10 +21,77 @@ const {
     Restaurant,
     RestaurantTable,
     Customer,
-    RestaurantCustomer
+    RestaurantCustomer,
+    Promotion,
+    Voucher,
+    VoucherTier,
+    CustomerVoucher
 } = models;
 
-const toPlain = (instance) => (instance ? instance.get({ plain: true }) : null);
+const toPlain = (instance) => {
+    if (!instance) {
+        return null;
+    }
+
+    if (typeof instance.get === 'function') {
+        return instance.get({ plain: true });
+    }
+
+    if (typeof instance.toJSON === 'function') {
+        return instance.toJSON();
+    }
+
+    if (typeof instance === 'object') {
+        return { ...instance };
+    }
+
+    return null;
+};
+
+const parseDateInput = (value) => {
+    if (!value) {
+        return null;
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        throw new Error('Invalid date value provided');
+    }
+    return date;
+};
+
+const MAX_LEGAL_DISCOUNT_PERCENT = 50;
+
+const normalizePercent = (value) => {
+    const percent = Number.parseFloat(value);
+    if (!Number.isFinite(percent) || percent < 0) {
+        throw new Error('Discount percent must be a positive number');
+    }
+    if (percent > MAX_LEGAL_DISCOUNT_PERCENT) {
+        throw new Error(`Discount percent cannot exceed ${MAX_LEGAL_DISCOUNT_PERCENT}% per policy`);
+    }
+    return percent;
+};
+
+const normalizeInteger = (value, fieldName, { allowNull = true } = {}) => {
+    if (value === null || value === undefined || value === '') {
+        if (allowNull) {
+            return null;
+        }
+        throw new Error(`${fieldName} is required`);
+    }
+    const intValue = Number.parseInt(value, 10);
+    if (!Number.isInteger(intValue) || intValue < 0) {
+        throw new Error(`${fieldName} must be a non-negative integer`);
+    }
+    return intValue;
+};
+
+const formatCurrency = (cents) => {
+    if (!Number.isFinite(Number(cents))) {
+        return '$0.00';
+    }
+    return `\$${(Number(cents) / 100).toFixed(2)}`;
+};
 
 const fetchRestaurants = async (restaurantIds) => {
     if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
@@ -129,6 +207,304 @@ const formatTable = (instance) => {
         capacity: table.capacity,
         status: table.status
     };
+};
+
+const formatVoucherTierAdmin = (instance) => {
+    const tier = toPlain(instance);
+    if (!tier) {
+        return null;
+    }
+
+    return {
+        id: tier.id,
+        voucherId: tier.voucherId,
+        minSpendCents: tier.minSpendCents,
+        discountPercent: Number.parseFloat(tier.discountPercent) || 0,
+        maxDiscountCents: tier.maxDiscountCents,
+        sortOrder: tier.sortOrder
+    };
+};
+
+const formatVoucherAdmin = (instance, stats = {}) => {
+    const voucher = toPlain(instance);
+    if (!voucher) {
+        return null;
+    }
+
+    return {
+        id: voucher.id,
+        promotionId: voucher.promotionId,
+        restaurantId: voucher.restaurantId,
+        code: voucher.code,
+        name: voucher.name,
+        description: voucher.description,
+        status: voucher.status,
+        discountType: voucher.discountType,
+        allowStackWithPoints: voucher.allowStackWithPoints,
+        claimsPerCustomer: voucher.claimsPerCustomer,
+        totalClaimLimit: voucher.totalClaimLimit,
+        validFrom: voucher.validFrom,
+        validUntil: voucher.validUntil,
+        termsUrl: voucher.termsUrl,
+        tiers: (voucher.tiers || []).map(formatVoucherTierAdmin).filter(Boolean),
+        stats: {
+            totalClaims: stats.totalClaims || 0,
+            redeemed: stats.redeemed || 0,
+            available: stats.available || 0,
+            expired: stats.expired || 0,
+            revoked: stats.revoked || 0
+        }
+    };
+};
+
+const formatPromotionAdmin = (instance, voucherStatsMap = new Map()) => {
+    const promotion = toPlain(instance);
+    if (!promotion) {
+        return null;
+    }
+
+    return {
+        id: promotion.id,
+        restaurantId: promotion.restaurantId,
+        restaurant: promotion.restaurant
+            ? {
+                  id: promotion.restaurant.id,
+                  name: promotion.restaurant.name
+              }
+            : null,
+        name: promotion.name,
+        headline: promotion.headline,
+        description: promotion.description,
+        bannerImageUrl: normalizeAssetUrl(promotion.bannerImageUrl),
+        ctaLabel: promotion.ctaLabel,
+        ctaUrl: promotion.ctaUrl,
+        status: promotion.status,
+        startsAt: promotion.startsAt,
+        endsAt: promotion.endsAt,
+        emailSubject: promotion.emailSubject,
+        emailPreviewText: promotion.emailPreviewText,
+        emailBody: promotion.emailBody,
+        vouchers: (promotion.vouchers || []).map((voucher) => {
+            const stats = voucherStatsMap.get(voucher.id) || {};
+            return formatVoucherAdmin(voucher, stats);
+        })
+    };
+};
+
+const fetchVoucherStats = async (voucherIds = []) => {
+    if (!Array.isArray(voucherIds) || voucherIds.length === 0) {
+        return new Map();
+    }
+
+    const rows = await CustomerVoucher.findAll({
+        where: {
+            voucherId: { [Op.in]: voucherIds }
+        },
+        attributes: ['voucherId', 'status', [fn('COUNT', col('id')), 'count']],
+        group: ['voucherId', 'status'],
+        raw: true
+    });
+
+    const statsMap = new Map();
+    rows.forEach((row) => {
+        const voucherId = row.voucherId;
+        const status = row.status;
+        const count = Number(row.count) || 0;
+
+        if (!statsMap.has(voucherId)) {
+            statsMap.set(voucherId, {
+                totalClaims: 0,
+                redeemed: 0,
+                available: 0,
+                expired: 0,
+                revoked: 0
+            });
+        }
+
+        const entry = statsMap.get(voucherId);
+        entry.totalClaims += count;
+
+        switch (status) {
+            case CUSTOMER_VOUCHER_STATUS.REDEEMED:
+                entry.redeemed += count;
+                break;
+            case CUSTOMER_VOUCHER_STATUS.AVAILABLE:
+                entry.available += count;
+                break;
+            case CUSTOMER_VOUCHER_STATUS.EXPIRED:
+                entry.expired += count;
+                break;
+            case CUSTOMER_VOUCHER_STATUS.REVOKED:
+                entry.revoked += count;
+                break;
+            default:
+                break;
+        }
+    });
+
+    return statsMap;
+};
+
+const loadPromotionForRestaurants = async (promotionId, restaurantIds, { transaction, lock } = {}) => {
+    const where = { id: promotionId };
+    if (Array.isArray(restaurantIds) && restaurantIds.length > 0) {
+        where.restaurantId = { [Op.in]: restaurantIds };
+    }
+
+    return Promotion.findOne({
+        where,
+        include: [
+            { model: Restaurant, as: 'restaurant', attributes: ['id', 'name'] },
+            {
+                model: Voucher,
+                as: 'vouchers',
+                required: false,
+                include: [{ model: VoucherTier, as: 'tiers', required: false }]
+            }
+        ],
+        transaction,
+        lock
+    });
+};
+
+const buildTierPayloads = (voucherId, tiers = []) => {
+    if (!Array.isArray(tiers) || tiers.length === 0) {
+        throw new Error('Voucher requires at least one discount tier');
+    }
+
+    return tiers.map((tier, index) => {
+        const rawMinSpend = tier.minSpendCents ?? tier.minSpend ?? tier.minimumSpend ?? tier.minSpendAmount;
+        const minSpendCents = normalizeInteger(rawMinSpend, 'minSpendCents', {
+            allowNull: false
+        });
+        const discountPercent = normalizePercent(tier.discountPercent);
+        const maxDiscountCents =
+            tier.maxDiscountCents === null || tier.maxDiscountCents === undefined || tier.maxDiscountCents === ''
+                ? null
+                : normalizeInteger(tier.maxDiscountCents, 'maxDiscountCents');
+
+        return {
+            voucherId,
+            minSpendCents,
+            discountPercent,
+            maxDiscountCents,
+            sortOrder: index
+        };
+    });
+};
+
+const createVoucherWithTiers = async (promotionRecord, voucherPayload, transaction) => {
+    const status = voucherPayload.status || VOUCHER_STATUS.ACTIVE;
+    if (!Object.values(VOUCHER_STATUS).includes(status)) {
+        throw new Error('Invalid voucher status');
+    }
+
+    const discountType = voucherPayload.discountType || DISCOUNT_TYPES.PERCENTAGE;
+    if (discountType !== DISCOUNT_TYPES.PERCENTAGE) {
+        throw new Error('Only percentage-based vouchers are supported at this time');
+    }
+
+    const claimsPerCustomer = voucherPayload.claimsPerCustomer
+        ? normalizeInteger(voucherPayload.claimsPerCustomer, 'claimsPerCustomer', { allowNull: false })
+        : 1;
+
+    const totalClaimLimit =
+        voucherPayload.totalClaimLimit === null || voucherPayload.totalClaimLimit === undefined || voucherPayload.totalClaimLimit === ''
+            ? null
+            : normalizeInteger(voucherPayload.totalClaimLimit, 'totalClaimLimit');
+
+    const voucher = await Voucher.create(
+        {
+            restaurantId: promotionRecord.restaurantId,
+            promotionId: promotionRecord.id,
+            code: voucherPayload.code,
+            name: voucherPayload.name,
+            description: voucherPayload.description || null,
+            status,
+            discountType,
+            allowStackWithPoints:
+                voucherPayload.allowStackWithPoints === undefined ? true : Boolean(voucherPayload.allowStackWithPoints),
+            claimsPerCustomer: claimsPerCustomer > 0 ? claimsPerCustomer : 1,
+            totalClaimLimit,
+            validFrom: parseDateInput(voucherPayload.validFrom) || promotionRecord.startsAt || null,
+            validUntil: parseDateInput(voucherPayload.validUntil) || promotionRecord.endsAt || null,
+            termsUrl: voucherPayload.termsUrl || null
+        },
+        { transaction }
+    );
+
+    const tierRows = buildTierPayloads(voucher.id, voucherPayload.tiers);
+    await VoucherTier.bulkCreate(
+        tierRows.map((row) => ({
+            ...row
+        })),
+        { transaction }
+    );
+
+    return voucher;
+};
+
+const updateVoucherWithTiers = async (voucherInstance, voucherPayload, transaction) => {
+    const status = voucherPayload.status || voucherInstance.status;
+    if (!Object.values(VOUCHER_STATUS).includes(status)) {
+        throw new Error('Invalid voucher status');
+    }
+
+    const discountType = voucherPayload.discountType || voucherInstance.discountType || DISCOUNT_TYPES.PERCENTAGE;
+    if (discountType !== DISCOUNT_TYPES.PERCENTAGE) {
+        throw new Error('Only percentage-based vouchers are supported at this time');
+    }
+
+    const claimsPerCustomer =
+        voucherPayload.claimsPerCustomer === undefined
+            ? voucherInstance.claimsPerCustomer
+            : normalizeInteger(voucherPayload.claimsPerCustomer, 'claimsPerCustomer', { allowNull: false });
+
+    const totalClaimLimit =
+        voucherPayload.totalClaimLimit === undefined
+            ? voucherInstance.totalClaimLimit
+            : voucherPayload.totalClaimLimit === null || voucherPayload.totalClaimLimit === ''
+              ? null
+              : normalizeInteger(voucherPayload.totalClaimLimit, 'totalClaimLimit');
+
+    await voucherInstance.update(
+        {
+            code: voucherPayload.code || voucherInstance.code,
+            name: voucherPayload.name || voucherInstance.name,
+            description: voucherPayload.description ?? voucherInstance.description,
+            status,
+            discountType,
+            allowStackWithPoints:
+                voucherPayload.allowStackWithPoints === undefined
+                    ? voucherInstance.allowStackWithPoints
+                    : Boolean(voucherPayload.allowStackWithPoints),
+            claimsPerCustomer: claimsPerCustomer > 0 ? claimsPerCustomer : 1,
+            totalClaimLimit,
+            validFrom:
+                voucherPayload.validFrom === undefined
+                    ? voucherInstance.validFrom
+                    : parseDateInput(voucherPayload.validFrom),
+            validUntil:
+                voucherPayload.validUntil === undefined
+                    ? voucherInstance.validUntil
+                    : parseDateInput(voucherPayload.validUntil),
+            termsUrl: voucherPayload.termsUrl ?? voucherInstance.termsUrl
+        },
+        { transaction }
+    );
+
+    if (Array.isArray(voucherPayload.tiers)) {
+        await VoucherTier.destroy({ where: { voucherId: voucherInstance.id }, transaction });
+        const tierRows = buildTierPayloads(voucherInstance.id, voucherPayload.tiers);
+        await VoucherTier.bulkCreate(
+            tierRows.map((row) => ({
+                ...row
+            })),
+            { transaction }
+        );
+    }
+
+    return voucherInstance;
 };
 
 const DEFAULT_PAGINATION = Object.freeze({
@@ -704,6 +1080,297 @@ export const updateTable = async (restaurantIds, tableId, payload) => {
     return formatTable(refreshed);
 };
 
+export const listPromotions = async (restaurantIds = []) => {
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
+        return [];
+    }
+
+    const promotions = await Promotion.findAll({
+        where: {
+            restaurantId: { [Op.in]: restaurantIds }
+        },
+        include: [
+            { model: Restaurant, as: 'restaurant', attributes: ['id', 'name'] },
+            {
+                model: Voucher,
+                as: 'vouchers',
+                required: false,
+                include: [{ model: VoucherTier, as: 'tiers', required: false }]
+            }
+        ],
+        order: [['startsAt', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    const voucherIds = promotions.flatMap((promotion) => (promotion.vouchers || []).map((voucher) => voucher.id));
+    const statsMap = await fetchVoucherStats(voucherIds);
+
+    return promotions.map((promotion) => formatPromotionAdmin(promotion, statsMap)).filter(Boolean);
+};
+
+export const getPromotion = async (restaurantIds = [], promotionId) => {
+    if (!promotionId) {
+        throw new Error('Promotion id is required');
+    }
+
+    const promotion = await loadPromotionForRestaurants(promotionId, restaurantIds);
+    if (!promotion) {
+        throw new Error('Promotion not found');
+    }
+
+    if (Array.isArray(restaurantIds) && restaurantIds.length > 0 && !restaurantIds.includes(promotion.restaurantId)) {
+        throw new Error('You do not have access to this promotion');
+    }
+
+    const statsMap = await fetchVoucherStats((promotion.vouchers || []).map((voucher) => voucher.id));
+    return formatPromotionAdmin(promotion, statsMap);
+};
+
+export const createPromotion = async (restaurantIds = [], payload = {}) => {
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
+        throw new Error('No restaurants available for this account');
+    }
+
+    if (!payload.restaurantId || !restaurantIds.includes(payload.restaurantId)) {
+        throw new Error('You do not have access to this restaurant');
+    }
+
+    const status = payload.status || PROMOTION_STATUS.DRAFT;
+    if (!Object.values(PROMOTION_STATUS).includes(status)) {
+        throw new Error('Invalid promotion status');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        const promotion = await Promotion.create(
+            {
+                restaurantId: payload.restaurantId,
+                name: payload.name,
+                headline: payload.headline || null,
+                description: payload.description || null,
+                bannerImageUrl: payload.bannerImageUrl ? normalizeAssetUrl(payload.bannerImageUrl) : null,
+                ctaLabel: payload.ctaLabel || null,
+                ctaUrl: payload.ctaUrl || null,
+                status,
+                startsAt: parseDateInput(payload.startsAt),
+                endsAt: parseDateInput(payload.endsAt),
+                emailSubject: payload.emailSubject || null,
+                emailPreviewText: payload.emailPreviewText || null,
+                emailBody: payload.emailBody || null
+            },
+            { transaction }
+        );
+
+        const vouchersPayload = Array.isArray(payload.vouchers) ? payload.vouchers : [];
+        for (const voucherPayload of vouchersPayload) {
+            await createVoucherWithTiers(promotion, voucherPayload, transaction);
+        }
+
+        const fullPromotion = await loadPromotionForRestaurants(promotion.id, restaurantIds, { transaction });
+        const statsMap = await fetchVoucherStats((fullPromotion?.vouchers || []).map((voucher) => voucher.id));
+        return formatPromotionAdmin(fullPromotion, statsMap);
+    });
+};
+
+export const updatePromotion = async (restaurantIds = [], promotionId, payload = {}) => {
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
+        throw new Error('No restaurants available for this account');
+    }
+
+    if (!promotionId) {
+        throw new Error('Promotion id is required');
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        const promotion = await loadPromotionForRestaurants(promotionId, restaurantIds, {
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (!promotion) {
+            throw new Error('Promotion not found');
+        }
+
+        if (!restaurantIds.includes(promotion.restaurantId)) {
+            throw new Error('You do not have access to this promotion');
+        }
+
+        const updates = {};
+
+        if (payload.name !== undefined) {
+            updates.name = payload.name;
+        }
+        if (payload.headline !== undefined) {
+            updates.headline = payload.headline;
+        }
+        if (payload.description !== undefined) {
+            updates.description = payload.description;
+        }
+        if (payload.bannerImageUrl !== undefined) {
+            updates.bannerImageUrl = payload.bannerImageUrl ? normalizeAssetUrl(payload.bannerImageUrl) : null;
+        }
+        if (payload.ctaLabel !== undefined) {
+            updates.ctaLabel = payload.ctaLabel;
+        }
+        if (payload.ctaUrl !== undefined) {
+            updates.ctaUrl = payload.ctaUrl;
+        }
+        if (payload.startsAt !== undefined) {
+            updates.startsAt = parseDateInput(payload.startsAt);
+        }
+        if (payload.endsAt !== undefined) {
+            updates.endsAt = parseDateInput(payload.endsAt);
+        }
+        if (payload.emailSubject !== undefined) {
+            updates.emailSubject = payload.emailSubject;
+        }
+        if (payload.emailPreviewText !== undefined) {
+            updates.emailPreviewText = payload.emailPreviewText;
+        }
+        if (payload.emailBody !== undefined) {
+            updates.emailBody = payload.emailBody;
+        }
+        if (payload.status !== undefined) {
+            if (!Object.values(PROMOTION_STATUS).includes(payload.status)) {
+                throw new Error('Invalid promotion status');
+            }
+            updates.status = payload.status;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await promotion.update(updates, { transaction });
+        }
+
+        if (Array.isArray(payload.vouchers)) {
+            const existingMap = new Map((promotion.vouchers || []).map((voucher) => [voucher.id, voucher]));
+
+            for (const voucherPayload of payload.vouchers) {
+                if (voucherPayload.id && existingMap.has(voucherPayload.id)) {
+                    await updateVoucherWithTiers(existingMap.get(voucherPayload.id), voucherPayload, transaction);
+                } else {
+                    await createVoucherWithTiers(promotion, voucherPayload, transaction);
+                }
+            }
+        }
+
+        const refreshed = await loadPromotionForRestaurants(promotion.id, restaurantIds, { transaction });
+        const statsMap = await fetchVoucherStats((refreshed?.vouchers || []).map((voucher) => voucher.id));
+        return formatPromotionAdmin(refreshed, statsMap);
+    });
+};
+
+export const dispatchPromotionEmails = async (restaurantIds = [], promotionId) => {
+    if (!promotionId) {
+        throw new Error('Promotion id is required');
+    }
+
+    const promotionRecord = await loadPromotionForRestaurants(promotionId, restaurantIds);
+    if (!promotionRecord) {
+        throw new Error('Promotion not found');
+    }
+
+    if (Array.isArray(restaurantIds) && restaurantIds.length > 0 && !restaurantIds.includes(promotionRecord.restaurantId)) {
+        throw new Error('You do not have access to this promotion');
+    }
+
+    const statsMap = await fetchVoucherStats((promotionRecord.vouchers || []).map((voucher) => voucher.id));
+    const promotion = formatPromotionAdmin(promotionRecord, statsMap);
+
+    if (!promotion || (promotion.vouchers || []).length === 0) {
+        throw new Error('Promotion has no vouchers configured');
+    }
+
+    const memberships = await RestaurantCustomer.findAll({
+        where: {
+            restaurantId: promotion.restaurantId,
+            status: MEMBERSHIP_STATUS.MEMBER
+        },
+        include: [
+            {
+                model: Customer,
+                as: 'customer',
+                required: true,
+                where: {
+                    email: { [Op.ne]: null }
+                }
+            }
+        ]
+    });
+
+    const recipients = memberships.filter((membership) => membership.customer?.email);
+    if (recipients.length === 0) {
+        return {
+            promotion,
+            attempted: 0,
+            sent: 0,
+            failed: 0
+        };
+    }
+
+    const urlSanitizer = /\/+$/;
+    const baseUrl = (env.app.customerAppUrl || env.app.appUrl || 'http://localhost:3030').replace(urlSanitizer, '');
+    const featuredVoucher = promotion.vouchers[0];
+    const maxDiscountPercent = promotion.vouchers.reduce((acc, voucher) => {
+        const voucherMax = (voucher.tiers || []).reduce(
+            (tierAcc, tier) => Math.max(tierAcc, Number(tier.discountPercent) || 0),
+            0
+        );
+        return Math.max(acc, voucherMax);
+    }, 0);
+
+    const emailResults = await Promise.allSettled(
+        recipients.map((membership) => {
+            const customer = membership.customer;
+            const name = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim() || customer.email || 'Valued guest';
+            const claimToken = signPromotionClaimToken({
+                restaurantId: promotion.restaurantId,
+                promotionId: promotion.id,
+                voucherId: featuredVoucher?.id || null,
+                customerId: membership.customerId,
+                membershipId: membership.id,
+                email: customer.email
+            });
+            const claimUrl = `${baseUrl}/claim-voucher?token=${encodeURIComponent(claimToken)}`;
+            const tiers = (featuredVoucher?.tiers || []).map((tier) => ({
+                minSpend: formatCurrency(tier.minSpendCents),
+                discountPercent: tier.discountPercent,
+                maxDiscount: tier.maxDiscountCents ? formatCurrency(tier.maxDiscountCents) : null
+            }));
+            const hasTiers = tiers.length > 0;
+
+            return sendEmail(
+                {
+                    name,
+                    emailSubject: promotion.emailSubject,
+                    emailPreviewText: promotion.emailPreviewText,
+                    promotionName: promotion.name,
+                    headline: promotion.headline,
+                    description: promotion.description,
+                    bannerImageUrl: promotion.bannerImageUrl,
+                    ctaLabel: promotion.ctaLabel || 'Claim voucher',
+                    claimUrl,
+                    voucherCode: featuredVoucher?.code || '',
+                    maxDiscountPercent,
+                    tiers,
+                    hasTiers,
+                    legalNotice: `Discounts are capped at ${MAX_LEGAL_DISCOUNT_PERCENT}% per transaction.`,
+                    validUntil: featuredVoucher?.validUntil || promotion.endsAt || null
+                },
+                customer.email,
+                EMAIL_ACTIONS.PROMOTION_CAMPAIGN
+            );
+        })
+    );
+
+    const sent = emailResults.filter((entry) => entry.status === 'fulfilled').length;
+    const failed = emailResults.length - sent;
+
+    return {
+        promotion,
+        attempted: emailResults.length,
+        sent,
+        failed
+    };
+};
+
 export default {
     listMenuCatalog,
     createMenuItem,
@@ -713,5 +1380,10 @@ export default {
     updateCustomerMembership,
     listTables,
     createTable,
-    updateTable
+    updateTable,
+    listPromotions,
+    getPromotion,
+    createPromotion,
+    updatePromotion,
+    dispatchPromotionEmails
 };
