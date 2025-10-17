@@ -4,12 +4,14 @@ import { up as seedRestaurants } from './002-restaurants.js';
 import { up as seedMenuCategories } from './003-menu-categories.js';
 import { up as seedMenuItems } from './004-menu-items.js';
 import { up as seedSampleOrders } from './005-sample-orders.js';
+import { up as seedPromotions } from './006-promotions.js';
 
 const seeders = [
     { name: 'Users', fn: seedUsers },
     { name: 'Restaurants', fn: seedRestaurants },
     { name: 'Menu Categories', fn: seedMenuCategories },
     { name: 'Menu Items', fn: seedMenuItems },
+    { name: 'Promotions', fn: seedPromotions },
     { name: 'Sample Orders', fn: seedSampleOrders }
 ];
 
@@ -35,6 +37,7 @@ export const seed = async () => {
         console.log('- 1 Restaurant with 8 tables');
         console.log('- 8 Menu categories');
         console.log('- 25 Menu items with food images');
+        console.log('- 1 Seasonal promotion with layered voucher tiers');
         console.log('- 2 Sample orders with order items');
         
     } catch (error) {
