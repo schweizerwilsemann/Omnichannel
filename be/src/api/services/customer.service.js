@@ -8,11 +8,16 @@ import { sendEmail } from './email.service.js';
 import { safeLoadOrderForEvent } from './order.service.js';
 import { notifyOrderCreated } from './realtime.service.js';
 import { normalizeAssetUrl } from './storage.service.js';
+import { verifyPromotionClaimToken } from '../utils/promotionTokens.js';
 import {
     MEMBERSHIP_STATUS,
     ORDER_STATUS,
     KDS_TICKET_STATUS,
-    EMAIL_ACTIONS
+    EMAIL_ACTIONS,
+    PROMOTION_STATUS,
+    VOUCHER_STATUS,
+    CUSTOMER_VOUCHER_STATUS,
+    DISCOUNT_TYPES
 } from '../utils/common.js';
 
 const {     
@@ -28,7 +33,11 @@ const {
     KdsTicket,
     RestaurantCustomer,
     Customer,
-    CustomerVerificationToken
+    CustomerVerificationToken,
+    Promotion,
+    Voucher,
+    VoucherTier,
+    CustomerVoucher
 } = models;
 
 
@@ -71,6 +80,235 @@ const buildCustomerMeta = (customerPayload = {}) => ({
     phoneNumber: customerPayload.phoneNumber || null,
     membershipNumber: customerPayload.membershipNumber || null
 });
+
+const MAX_DISCOUNT_RATIO = 0.5;
+
+const toPlain = (instance) => {
+    if (!instance) {
+        return null;
+    }
+
+    if (typeof instance.get === 'function') {
+        return instance.get({ plain: true });
+    }
+
+    if (typeof instance.toJSON === 'function') {
+        return instance.toJSON();
+    }
+
+    if (typeof instance === 'object') {
+        return { ...instance };
+    }
+
+    return null;
+};
+
+const normalizeDate = (value) => {
+    if (!value) {
+        return null;
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isWithinSchedule = (startsAt, endsAt, referenceDate = new Date()) => {
+    const reference = normalizeDate(referenceDate);
+    if (!reference) {
+        return false;
+    }
+
+    const start = normalizeDate(startsAt);
+    const end = normalizeDate(endsAt);
+
+    if (start && reference < start) {
+        return false;
+    }
+
+    if (end && reference > end) {
+        return false;
+    }
+
+    return true;
+};
+
+const sortVoucherTiers = (tiers = []) =>
+    [...tiers].sort((a, b) => {
+        if (a.minSpendCents !== b.minSpendCents) {
+            return a.minSpendCents - b.minSpendCents;
+        }
+        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
+
+const formatVoucherTier = (tierPlain) => ({
+    id: tierPlain.id,
+    minSpendCents: tierPlain.minSpendCents,
+    discountPercent: Number.parseFloat(tierPlain.discountPercent) || 0,
+    maxDiscountCents: tierPlain.maxDiscountCents,
+    sortOrder: tierPlain.sortOrder
+});
+
+const buildCustomerVoucherPayload = (recordInstance) => {
+    const record = toPlain(recordInstance);
+    if (!record) {
+        return null;
+    }
+
+    const voucher = record.voucher ? toPlain(record.voucher) : null;
+    const promotion = record.promotion ? toPlain(record.promotion) : null;
+
+    return {
+        id: record.id,
+        voucherId: record.voucherId,
+        promotionId: record.promotionId,
+        restaurantId: record.restaurantId,
+        customerId: record.customerId,
+        code: record.code,
+        status: record.status,
+        claimChannel: record.claimChannel,
+        claimedAt: record.claimedAt,
+        expiresAt: record.expiresAt,
+        redeemedAt: record.redeemedAt,
+        metadata: record.metadata || null,
+        voucher: voucher
+            ? {
+                  id: voucher.id,
+                  code: voucher.code,
+                  name: voucher.name,
+                  description: voucher.description,
+                  status: voucher.status,
+                  discountType: voucher.discountType,
+                  allowStackWithPoints: voucher.allowStackWithPoints,
+                  claimsPerCustomer: voucher.claimsPerCustomer,
+                  totalClaimLimit: voucher.totalClaimLimit,
+                  validFrom: voucher.validFrom,
+                  validUntil: voucher.validUntil,
+                  termsUrl: voucher.termsUrl,
+                  tiers: sortVoucherTiers(voucher.tiers || []).map((tier) => formatVoucherTier(tier))
+              }
+            : null,
+        promotion: promotion
+            ? {
+                  id: promotion.id,
+                  name: promotion.name,
+                  headline: promotion.headline,
+                  description: promotion.description,
+                  bannerImageUrl: normalizeAssetUrl(promotion.bannerImageUrl),
+                  ctaLabel: promotion.ctaLabel,
+                  ctaUrl: promotion.ctaUrl,
+                  status: promotion.status,
+                  startsAt: promotion.startsAt,
+                  endsAt: promotion.endsAt
+              }
+            : null
+    };
+};
+
+const buildPromotionPayload = (promotionInstance, claimsByVoucherId, referenceDate = new Date(), hasCustomer = false) => {
+    const promotion = toPlain(promotionInstance);
+    if (!promotion) {
+        return null;
+    }
+
+    const vouchers = (promotion.vouchers || []).map((voucherPlain) => {
+        const tiers = sortVoucherTiers(voucherPlain.tiers || []).map((tier) => formatVoucherTier(tier));
+        const claim = claimsByVoucherId.get(voucherPlain.id) || null;
+
+        const validNow = voucherPlain.status === VOUCHER_STATUS.ACTIVE && isWithinSchedule(voucherPlain.validFrom, voucherPlain.validUntil, referenceDate);
+        const customerVoucher = claim ? buildCustomerVoucherPayload(claim) : null;
+        const alreadyClaimed = Boolean(customerVoucher && customerVoucher.status !== CUSTOMER_VOUCHER_STATUS.REVOKED);
+
+        return {
+            id: voucherPlain.id,
+            code: voucherPlain.code,
+            name: voucherPlain.name,
+            description: voucherPlain.description,
+            status: voucherPlain.status,
+            discountType: voucherPlain.discountType,
+            allowStackWithPoints: voucherPlain.allowStackWithPoints,
+            claimsPerCustomer: voucherPlain.claimsPerCustomer,
+            totalClaimLimit: voucherPlain.totalClaimLimit,
+            validFrom: voucherPlain.validFrom,
+            validUntil: voucherPlain.validUntil,
+            termsUrl: voucherPlain.termsUrl,
+            tiers,
+            customerVoucher,
+            alreadyClaimed,
+            claimable: hasCustomer && !alreadyClaimed && validNow
+        };
+    });
+
+    return {
+        id: promotion.id,
+        restaurantId: promotion.restaurantId,
+        name: promotion.name,
+        headline: promotion.headline,
+        description: promotion.description,
+        bannerImageUrl: normalizeAssetUrl(promotion.bannerImageUrl),
+        ctaLabel: promotion.ctaLabel,
+        ctaUrl: promotion.ctaUrl,
+        status: promotion.status,
+        startsAt: promotion.startsAt,
+        endsAt: promotion.endsAt,
+        emailSubject: promotion.emailSubject,
+        emailPreviewText: promotion.emailPreviewText,
+        emailBody: promotion.emailBody,
+        vouchers: vouchers.filter(Boolean)
+    };
+};
+
+const selectVoucherTierForSubtotal = (voucherPlain, subtotalCents) => {
+    if (!voucherPlain) {
+        return null;
+    }
+    const tiers = sortVoucherTiers(voucherPlain.tiers || []);
+    if (tiers.length === 0) {
+        return null;
+    }
+
+    let selected = null;
+    for (const tier of tiers) {
+        if (subtotalCents >= tier.minSpendCents) {
+            selected = tier;
+        } else {
+            break;
+        }
+    }
+
+    return selected;
+};
+
+const computeVoucherDiscountForSubtotal = (voucherPlain, subtotalCents) => {
+    if (!voucherPlain) {
+        return { discountCents: 0, tier: null };
+    }
+
+    if (voucherPlain.discountType !== DISCOUNT_TYPES.PERCENTAGE) {
+        return { discountCents: 0, tier: null };
+    }
+
+    const selectedTier = selectVoucherTierForSubtotal(voucherPlain, subtotalCents);
+    if (!selectedTier) {
+        return { discountCents: 0, tier: null };
+    }
+
+    const percent = Number.parseFloat(selectedTier.discountPercent) || 0;
+    if (percent <= 0) {
+        return { discountCents: 0, tier: selectedTier };
+    }
+
+    let discountCents = Math.floor((percent / 100) * subtotalCents);
+    if (selectedTier.maxDiscountCents && selectedTier.maxDiscountCents > 0) {
+        discountCents = Math.min(discountCents, selectedTier.maxDiscountCents);
+    }
+
+    return {
+        discountCents,
+        tier: selectedTier,
+        percent
+    };
+};
+
+const computeLegalDiscountCap = (subtotalCents) => Math.floor(subtotalCents * MAX_DISCOUNT_RATIO);
 
 export const getTableDetailsBySlug = async (qrSlug) => {
     if (!qrSlug) {
@@ -133,6 +371,354 @@ export const getActiveSessionByToken = async (sessionToken) => {
               }
             : null
     };
+};
+
+export const listActivePromotions = async (sessionToken) => {
+    const session = await resolveSession(sessionToken);
+
+    const referenceDate = new Date();
+    const promotions = await Promotion.findAll({
+        where: {
+            restaurantId: session.restaurantId,
+            status: PROMOTION_STATUS.ACTIVE,
+            [Op.and]: [
+                { [Op.or]: [{ startsAt: null }, { startsAt: { [Op.lte]: referenceDate } }] },
+                { [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gte]: referenceDate } }] }
+            ]
+        },
+        include: [
+            {
+                model: Voucher,
+                as: 'vouchers',
+                required: false,
+                where: {
+                    status: VOUCHER_STATUS.ACTIVE
+                },
+                include: [{ model: VoucherTier, as: 'tiers', required: false }]
+            }
+        ],
+        order: [
+            ['startsAt', 'ASC'],
+            ['createdAt', 'DESC'],
+            [{ model: Voucher, as: 'vouchers' }, 'createdAt', 'ASC'],
+            [{ model: Voucher, as: 'vouchers' }, { model: VoucherTier, as: 'tiers' }, 'minSpendCents', 'ASC']
+        ]
+    });
+
+    if (promotions.length === 0) {
+        return [];
+    }
+
+    let claimsByVoucherId = new Map();
+    if (session.customerId) {
+        const voucherIds = promotions.flatMap((promotion) => (promotion.vouchers || []).map((voucher) => voucher.id));
+        if (voucherIds.length > 0) {
+            const customerClaims = await CustomerVoucher.findAll({
+                where: {
+                    customerId: session.customerId,
+                    voucherId: { [Op.in]: voucherIds }
+                }
+            });
+            claimsByVoucherId = new Map(customerClaims.map((claim) => [claim.voucherId, claim]));
+        }
+    }
+
+    return promotions
+        .map((promotion) => buildPromotionPayload(promotion, claimsByVoucherId, referenceDate, Boolean(session.customerId)))
+        .filter(Boolean);
+};
+
+export const listCustomerVouchers = async (sessionToken) => {
+    const session = await resolveSession(sessionToken);
+    if (!session.customerId) {
+        return {
+            available: [],
+            redeemed: [],
+            expired: [],
+            revoked: []
+        };
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        const records = await CustomerVoucher.findAll({
+            where: {
+                restaurantId: session.restaurantId,
+                customerId: session.customerId
+            },
+            include: [
+                {
+                    model: Voucher,
+                    as: 'voucher',
+                    include: [{ model: VoucherTier, as: 'tiers', required: false }]
+                },
+                { model: Promotion, as: 'promotion', required: false }
+            ],
+            order: [['claimedAt', 'DESC']],
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        const referenceDate = new Date();
+        const formatted = [];
+
+        for (const record of records) {
+            const expiresAt = normalizeDate(record.expiresAt);
+            if (
+                record.status === CUSTOMER_VOUCHER_STATUS.AVAILABLE &&
+                expiresAt &&
+                expiresAt < referenceDate
+            ) {
+                await record.update(
+                    { status: CUSTOMER_VOUCHER_STATUS.EXPIRED },
+                    { transaction }
+                );
+                record.status = CUSTOMER_VOUCHER_STATUS.EXPIRED;
+            }
+            formatted.push(buildCustomerVoucherPayload(record));
+        }
+
+        return {
+            available: formatted.filter((entry) => entry && entry.status === CUSTOMER_VOUCHER_STATUS.AVAILABLE),
+            redeemed: formatted.filter((entry) => entry && entry.status === CUSTOMER_VOUCHER_STATUS.REDEEMED),
+            expired: formatted.filter((entry) => entry && entry.status === CUSTOMER_VOUCHER_STATUS.EXPIRED),
+            revoked: formatted.filter((entry) => entry && entry.status === CUSTOMER_VOUCHER_STATUS.REVOKED)
+        };
+    });
+};
+
+const claimVoucherForCustomer = async ({ restaurantId, customerId }, payload = {}, { channel = 'CUSTOMER_APP', tokenPayload } = {}) => {
+    if (!restaurantId) {
+        throw new Error('Restaurant context is required to claim vouchers');
+    }
+
+    if (!customerId) {
+        throw new Error('You need a loyalty membership to claim vouchers');
+    }
+
+    const { promotionId, voucherId } = payload;
+    const now = new Date();
+
+    return sequelize.transaction(async (transaction) => {
+        let voucher = null;
+        if (voucherId) {
+            voucher = await Voucher.findOne({
+                where: {
+                    id: voucherId,
+                    restaurantId
+                },
+                include: [
+                    { model: VoucherTier, as: 'tiers', required: false },
+                    { model: Promotion, as: 'promotion', required: false }
+                ],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            if (!voucher) {
+                throw new Error('Voucher not found for this restaurant');
+            }
+        } else if (promotionId) {
+            const promotion = await Promotion.findOne({
+                where: {
+                    id: promotionId,
+                    restaurantId,
+                    status: PROMOTION_STATUS.ACTIVE,
+                    [Op.and]: [
+                        { [Op.or]: [{ startsAt: null }, { startsAt: { [Op.lte]: now } }] },
+                        { [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gte]: now } }] }
+                    ]
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!promotion) {
+                throw new Error('Promotion is no longer active');
+            }
+
+            voucher = await Voucher.findOne({
+                where: {
+                    promotionId: promotion.id,
+                    restaurantId,
+                    status: VOUCHER_STATUS.ACTIVE
+                },
+                include: [
+                    { model: VoucherTier, as: 'tiers', required: false },
+                    { model: Promotion, as: 'promotion', required: false }
+                ],
+                order: [['createdAt', 'ASC']],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!voucher) {
+                throw new Error('This promotion does not have an active voucher to claim right now');
+            }
+        } else {
+            throw new Error('Voucher or promotion reference is required');
+        }
+
+        if (voucher.status !== VOUCHER_STATUS.ACTIVE) {
+            throw new Error('Voucher is not active');
+        }
+
+        if (!isWithinSchedule(voucher.validFrom, voucher.validUntil, now)) {
+            throw new Error('Voucher is not available at this time');
+        }
+
+        const existingClaim = await CustomerVoucher.findOne({
+            where: {
+                voucherId: voucher.id,
+                customerId
+            },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (existingClaim) {
+            if (existingClaim.status === CUSTOMER_VOUCHER_STATUS.EXPIRED) {
+                throw new Error('This voucher has already expired for your account');
+            }
+            if (existingClaim.status === CUSTOMER_VOUCHER_STATUS.REDEEMED) {
+                throw new Error('You already used this voucher on a previous order');
+            }
+            if (existingClaim.status === CUSTOMER_VOUCHER_STATUS.REVOKED) {
+                throw new Error('This voucher is no longer available for your account');
+            }
+            const existingPayload = buildCustomerVoucherPayload(existingClaim);
+            return { ...existingPayload, alreadyClaimed: true };
+        }
+
+        if (voucher.totalClaimLimit) {
+            const claimedCount = await CustomerVoucher.count({
+                where: { voucherId: voucher.id },
+                transaction
+            });
+            if (claimedCount >= voucher.totalClaimLimit) {
+                throw new Error('This voucher has reached its claim limit');
+            }
+        }
+
+        const expiresAt = normalizeDate(voucher.validUntil) || normalizeDate(voucher.promotion?.endsAt) || null;
+        const metadata = {
+            claimedVia: channel,
+            tokenPromotionId: tokenPayload?.promotionId || undefined,
+            tokenVoucherId: tokenPayload?.voucherId || undefined,
+            tokenEmail: tokenPayload?.email || undefined
+        };
+        Object.keys(metadata).forEach((key) => {
+            if (metadata[key] === undefined || metadata[key] === null) {
+                delete metadata[key];
+            }
+        });
+
+        const record = await CustomerVoucher.create(
+            {
+                voucherId: voucher.id,
+                promotionId: voucher.promotionId,
+                restaurantId,
+                customerId,
+                code: voucher.code,
+                status: CUSTOMER_VOUCHER_STATUS.AVAILABLE,
+                claimChannel: channel,
+                expiresAt,
+                metadata
+            },
+            { transaction }
+        );
+
+        const membershipRecord = await RestaurantCustomer.findOne({
+            where: {
+                restaurantId,
+                customerId
+            },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        if (membershipRecord) {
+            await membershipRecord.update({ lastClaimedAt: new Date() }, { transaction });
+        }
+
+        const fullRecord = await CustomerVoucher.findByPk(record.id, {
+            include: [
+                {
+                    model: Voucher,
+                    as: 'voucher',
+                    include: [{ model: VoucherTier, as: 'tiers', required: false }]
+                },
+                { model: Promotion, as: 'promotion', required: false }
+            ],
+            transaction
+        });
+
+        const payload = buildCustomerVoucherPayload(fullRecord);
+        return { ...payload, alreadyClaimed: false };
+    });
+};
+
+export const claimPromotionVoucher = async (sessionToken, payload = {}) => {
+    const session = await resolveSession(sessionToken);
+    const channel = payload.channel || 'CUSTOMER_APP';
+    const claimPayload = {
+        promotionId: payload.promotionId || undefined,
+        voucherId: payload.voucherId || undefined
+    };
+
+    return claimVoucherForCustomer(
+        { restaurantId: session.restaurantId, customerId: session.customerId },
+        claimPayload,
+        { channel }
+    );
+};
+
+export const claimPromotionVoucherByToken = async (token, payload = {}) => {
+    const tokenData = verifyPromotionClaimToken(token);
+    const restaurantId = tokenData.restaurantId;
+    const customerId = tokenData.customerId;
+
+    if (!restaurantId || !customerId) {
+        throw new Error('Invalid claim token');
+    }
+
+    const membership = await RestaurantCustomer.findOne({
+        where: {
+            id: tokenData.membershipId,
+            restaurantId,
+            customerId
+        },
+        include: [{ model: Customer, as: 'customer', required: true }]
+    });
+
+    if (!membership) {
+        throw new Error('Membership not found for this claim token');
+    }
+
+    if (membership.status !== MEMBERSHIP_STATUS.MEMBER) {
+        throw new Error('Your membership is not active');
+    }
+
+    if (
+        tokenData.email &&
+        membership.customer.email &&
+        membership.customer.email.toLowerCase() !== tokenData.email.toLowerCase()
+    ) {
+        throw new Error('This claim link does not match your membership email');
+    }
+
+    const claimPayload = {
+        promotionId: payload.promotionId || tokenData.promotionId || undefined,
+        voucherId: payload.voucherId || tokenData.voucherId || undefined
+    };
+
+    if (!claimPayload.promotionId && !claimPayload.voucherId) {
+        throw new Error('Promotion reference missing from claim token');
+    }
+
+    return claimVoucherForCustomer(
+        { restaurantId, customerId },
+        claimPayload,
+        { channel: 'EMAIL', tokenPayload: tokenData }
+    );
 };
 
 const findExistingCustomer = async (lookup, transaction) => {
@@ -390,6 +976,23 @@ export const placeOrderForSession = async (sessionToken, payload) => {
     const menuItemIds = items.map((item) => item.menuItemId);
     const uniqueMenuItemIds = Array.from(new Set(menuItemIds));
     const applyLoyaltyDiscount = Boolean(payload.applyLoyaltyDiscount);
+    const requestedPointsRaw = payload.loyaltyPointsToRedeem;
+    const loyaltyPointsRequested = Number.isInteger(requestedPointsRaw)
+        ? requestedPointsRaw
+        : Number.isFinite(Number.parseInt(requestedPointsRaw, 10))
+            ? Number.parseInt(requestedPointsRaw, 10)
+            : 0;
+
+    if (loyaltyPointsRequested < 0) {
+        throw new Error('Loyalty points to redeem must be zero or a positive integer');
+    }
+
+    const requestedCustomerVoucherId = payload.customerVoucherId || null;
+    const voucherCode = typeof payload.voucherCode === 'string' ? payload.voucherCode.trim() || null : null;
+
+    if ((requestedCustomerVoucherId || voucherCode) && !session.customerId) {
+        throw new Error('You must have a loyalty membership to apply vouchers');
+    }
 
     return sequelize.transaction(async (transaction) => {
         const menuItems = await MenuItem.findAll({
@@ -412,6 +1015,8 @@ export const placeOrderForSession = async (sessionToken, payload) => {
             throw new Error('Order total must be greater than zero');
         }
 
+        const now = new Date();
+
         let membershipRecord = null;
         if (session.customerId) {
             membershipRecord = await RestaurantCustomer.findOne({
@@ -424,11 +1029,130 @@ export const placeOrderForSession = async (sessionToken, payload) => {
             });
         }
 
-        let discountAppliedCents = 0;
-        if (membershipRecord && applyLoyaltyDiscount && membershipRecord.discountBalanceCents > 0) {
-            discountAppliedCents = Math.min(membershipRecord.discountBalanceCents, subtotalCents);
+        if (!membershipRecord && (applyLoyaltyDiscount || loyaltyPointsRequested > 0)) {
+            throw new Error('Loyalty discounts require an active membership');
         }
 
+        let customerVoucherRecord = null;
+        if (requestedCustomerVoucherId) {
+            customerVoucherRecord = await CustomerVoucher.findOne({
+                where: {
+                    id: requestedCustomerVoucherId,
+                    restaurantId: session.restaurantId
+                },
+                include: [
+                    {
+                        model: Voucher,
+                        as: 'voucher',
+                        include: [{ model: VoucherTier, as: 'tiers', required: false }]
+                    },
+                    { model: Promotion, as: 'promotion', required: false }
+                ],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!customerVoucherRecord || customerVoucherRecord.customerId !== session.customerId) {
+                throw new Error('Voucher is not available for this session');
+            }
+        } else if (voucherCode) {
+            customerVoucherRecord = await CustomerVoucher.findOne({
+                where: {
+                    code: voucherCode,
+                    customerId: session.customerId,
+                    restaurantId: session.restaurantId
+                },
+                include: [
+                    {
+                        model: Voucher,
+                        as: 'voucher',
+                        include: [{ model: VoucherTier, as: 'tiers', required: false }]
+                    },
+                    { model: Promotion, as: 'promotion', required: false }
+                ],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!customerVoucherRecord) {
+                throw new Error('Voucher code could not be found for this membership');
+            }
+        }
+
+        let voucherDiscountCents = 0;
+        let appliedVoucherTier = null;
+        let appliedPromotionId = null;
+
+        if (customerVoucherRecord) {
+            if (customerVoucherRecord.status !== CUSTOMER_VOUCHER_STATUS.AVAILABLE) {
+                throw new Error('Voucher has already been used or is no longer available');
+            }
+
+            const voucherExpiresAt = normalizeDate(customerVoucherRecord.expiresAt);
+            if (voucherExpiresAt && voucherExpiresAt < now) {
+                await customerVoucherRecord.update({ status: CUSTOMER_VOUCHER_STATUS.EXPIRED }, { transaction });
+                throw new Error('Voucher has expired');
+            }
+
+            const voucherPlain = customerVoucherRecord.voucher ? toPlain(customerVoucherRecord.voucher) : null;
+            if (!voucherPlain) {
+                throw new Error('Voucher details are unavailable');
+            }
+
+            if (voucherPlain.status !== VOUCHER_STATUS.ACTIVE) {
+                throw new Error('Voucher is not active');
+            }
+
+            if (!isWithinSchedule(voucherPlain.validFrom, voucherPlain.validUntil, now)) {
+                throw new Error('Voucher cannot be applied at this time');
+            }
+
+            const discountResult = computeVoucherDiscountForSubtotal(voucherPlain, subtotalCents);
+            if (!discountResult.tier || discountResult.discountCents <= 0) {
+                throw new Error('Order total does not meet the voucher requirements');
+            }
+
+            if (!voucherPlain.allowStackWithPoints && (applyLoyaltyDiscount || loyaltyPointsRequested > 0)) {
+                throw new Error('This voucher cannot be combined with loyalty discounts');
+            }
+
+            voucherDiscountCents = discountResult.discountCents;
+            appliedVoucherTier = discountResult.tier;
+            appliedPromotionId = customerVoucherRecord.promotionId || voucherPlain.promotionId || null;
+        }
+
+        const legalDiscountCap = computeLegalDiscountCap(subtotalCents);
+        voucherDiscountCents = Math.min(voucherDiscountCents, legalDiscountCap);
+        let remainingDiscountCap = Math.max(legalDiscountCap - voucherDiscountCents, 0);
+
+        let loyaltyDiscountFromBalance = 0;
+        let loyaltyDiscountFromPoints = 0;
+        let loyaltyPointsRedeemed = 0;
+
+        if (membershipRecord) {
+            if (applyLoyaltyDiscount && remainingDiscountCap > 0 && membershipRecord.discountBalanceCents > 0) {
+                loyaltyDiscountFromBalance = Math.min(membershipRecord.discountBalanceCents, remainingDiscountCap);
+                remainingDiscountCap -= loyaltyDiscountFromBalance;
+            }
+
+            if (loyaltyPointsRequested > 0) {
+                if (loyaltyPointsRequested > membershipRecord.loyaltyPoints) {
+                    throw new Error('You do not have enough loyalty points to redeem that amount');
+                }
+
+                const maxPointsByCap = Math.floor(remainingDiscountCap / LOYALTY_POINT_VALUE_CENTS);
+                if (maxPointsByCap <= 0) {
+                    throw new Error('Requested loyalty points exceed the legal discount cap (50% of the order total)');
+                }
+
+                loyaltyPointsRedeemed = Math.min(loyaltyPointsRequested, maxPointsByCap);
+                loyaltyDiscountFromPoints = loyaltyPointsRedeemed * LOYALTY_POINT_VALUE_CENTS;
+                remainingDiscountCap -= loyaltyDiscountFromPoints;
+            }
+        }
+
+        const loyaltyDiscountCents = loyaltyDiscountFromBalance + loyaltyDiscountFromPoints;
+        const discountAppliedCents = voucherDiscountCents + loyaltyDiscountCents;
         const payableCents = Math.max(subtotalCents - discountAppliedCents, 0);
         const earnedLoyaltyPoints = membershipRecord ? Math.floor(payableCents / 100) : 0;
 
@@ -437,9 +1161,14 @@ export const placeOrderForSession = async (sessionToken, payload) => {
                 restaurantId: session.restaurantId,
                 guestSessionId: session.id,
                 customerId: session.customerId,
+                customerVoucherId: customerVoucherRecord ? customerVoucherRecord.id : null,
+                promotionId: appliedPromotionId,
                 status: ORDER_STATUS.PLACED,
                 totalCents: payableCents,
                 discountAppliedCents,
+                voucherDiscountCents,
+                loyaltyDiscountCents,
+                loyaltyPointsRedeemed,
                 earnedLoyaltyPoints,
                 specialRequest: payload.specialRequest || null
             },
@@ -485,19 +1214,38 @@ export const placeOrderForSession = async (sessionToken, payload) => {
 
         let membershipSummary = null;
         if (membershipRecord) {
-            const nextDiscountBalance = Math.max(membershipRecord.discountBalanceCents - discountAppliedCents, 0);
+            const nextDiscountBalance = Math.max(membershipRecord.discountBalanceCents - loyaltyDiscountFromBalance, 0);
+            const nextLoyaltyPoints = Math.max(membershipRecord.loyaltyPoints - loyaltyPointsRedeemed + earnedLoyaltyPoints, 0);
+
             await membershipRecord.update(
                 {
-                    loyaltyPoints: membershipRecord.loyaltyPoints + earnedLoyaltyPoints,
+                    loyaltyPoints: nextLoyaltyPoints,
                     discountBalanceCents: nextDiscountBalance,
                     lastVisitAt: new Date()
                 },
                 { transaction }
             );
+
             membershipSummary = {
-                loyaltyPoints: membershipRecord.loyaltyPoints,
-                discountBalanceCents: membershipRecord.discountBalanceCents
+                loyaltyPoints: nextLoyaltyPoints,
+                discountBalanceCents: nextDiscountBalance
             };
+        }
+
+        if (customerVoucherRecord) {
+            await customerVoucherRecord.update(
+                {
+                    status: CUSTOMER_VOUCHER_STATUS.REDEEMED,
+                    redeemedAt: new Date(),
+                    metadata: {
+                        ...(customerVoucherRecord.metadata || {}),
+                        orderId: order.id,
+                        discountCents: voucherDiscountCents,
+                        appliedTierId: appliedVoucherTier?.id || null
+                    }
+                },
+                { transaction }
+            );
         }
 
         logger.info('Customer order created', { orderId: order.id, sessionToken });
@@ -518,6 +1266,11 @@ export const placeOrderForSession = async (sessionToken, payload) => {
             status: order.status,
             subtotalCents,
             discountAppliedCents,
+            voucherDiscountCents,
+            loyaltyDiscountCents,
+            loyaltyPointsRedeemed,
+            customerVoucherId: customerVoucherRecord ? customerVoucherRecord.id : null,
+            promotionId: appliedPromotionId,
             totalCents: order.totalCents,
             total: order.totalCents / 100,
             earnedLoyaltyPoints,
@@ -549,6 +1302,22 @@ export const listOrdersForSession = async (sessionToken) => {
             {
                 model: KdsTicket,
                 as: 'kdsTickets'
+            },
+            {
+                model: CustomerVoucher,
+                as: 'customerVoucher',
+                include: [
+                    {
+                        model: Voucher,
+                        as: 'voucher',
+                        attributes: ['id', 'code', 'name']
+                    },
+                    {
+                        model: Promotion,
+                        as: 'promotion',
+                        attributes: ['id', 'name', 'headline']
+                    }
+                ]
             }
         ],
         order: [['placedAt', 'DESC']]
@@ -581,12 +1350,42 @@ export const listOrdersForSession = async (sessionToken) => {
 
         const unratedItems = items.filter((item) => !item.rating);
 
+        const customerVoucherPlain = toPlain(order.customerVoucher);
+        const voucherSummary = customerVoucherPlain
+            ? {
+                  id: customerVoucherPlain.id,
+                  code: customerVoucherPlain.code,
+                  status: customerVoucherPlain.status,
+                  claimedAt: customerVoucherPlain.claimedAt,
+                  redeemedAt: customerVoucherPlain.redeemedAt,
+                  promotion: customerVoucherPlain.promotion
+                      ? {
+                            id: customerVoucherPlain.promotion.id,
+                            name: customerVoucherPlain.promotion.name,
+                            headline: customerVoucherPlain.promotion.headline
+                        }
+                      : null,
+                  voucher: customerVoucherPlain.voucher
+                      ? {
+                            id: customerVoucherPlain.voucher.id,
+                            code: customerVoucherPlain.voucher.code,
+                            name: customerVoucherPlain.voucher.name
+                        }
+                      : null
+              }
+            : null;
+
         return {
             id: order.id,
             status: order.status,
             totalCents: order.totalCents,
             total: order.totalCents / 100,
             discountAppliedCents: order.discountAppliedCents || 0,
+            voucherDiscountCents: order.voucherDiscountCents || 0,
+            loyaltyDiscountCents: order.loyaltyDiscountCents || 0,
+            loyaltyPointsRedeemed: order.loyaltyPointsRedeemed || 0,
+            subtotalCents: order.totalCents + (order.discountAppliedCents || 0),
+            customerVoucher: voucherSummary,
             earnedLoyaltyPoints: order.earnedLoyaltyPoints || 0,
             placedAt: order.placedAt,
             canRate: order.status === ORDER_STATUS.COMPLETED && unratedItems.length > 0,
