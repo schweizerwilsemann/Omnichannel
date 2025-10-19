@@ -12,3 +12,7 @@ bin
 .env.production
 
 *.log
+.venv
+chat-infrastructure/rag_service/.venv
+_pycache_/
+__pycache__/

@@ -1,0 +1,37 @@
+[
+  {
+    "restaurant_id": "pho-24",
+    "source_id": "faq-001",
+    "question": "What are the opening hours for Pho 24 on weekdays?",
+    "answer": "Pho 24 is open from 9:00 AM to 10:00 PM Monday through Friday.",
+    "tags": ["hours", "general"]
+  },
+  {
+    "restaurant_id": "pho-24",
+    "source_id": "menu-vegetarian",
+    "question": "Do you offer vegetarian options?",
+    "answer": "Yes, Pho 24 offers vegetarian pho with mushroom broth and fresh tofu spring rolls.",
+    "tags": ["menu", "dietary"]
+  },
+  {
+    "restaurant_id": "banhmi-corner",
+    "source_id": "faq-101",
+    "question": "Can I request gluten-free bread?",
+    "answer": "Gluten-free baguettes are available upon request for an additional 15,000 VND.",
+    "tags": ["menu", "dietary"]
+  },
+  {
+    "restaurant_id": "banhmi-corner",
+    "source_id": "delivery-001",
+    "question": "What is the average delivery time during lunch?",
+    "answer": "Delivery typically takes 30-40 minutes between 11:00 AM and 2:00 PM.",
+    "tags": ["delivery"]
+  },
+  {
+    "restaurant_id": "viet-grill",
+    "source_id": "promotion-2024",
+    "question": "Are there any current promotions?",
+    "answer": "Viet Grill offers a 10% discount on combo meals after 8:00 PM daily.",
+    "tags": ["promotion"]
+  }
+]
