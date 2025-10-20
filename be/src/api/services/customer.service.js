@@ -1,6 +1,8 @@
 import { v4 as uuid } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
+import { authenticator } from 'otplib';
+import QRCode from 'qrcode';
 import models from '../models/index.js';
 import logger from '../../config/logger.js';
 import env from '../../config/env.js';
@@ -14,6 +16,7 @@ import {
     ORDER_STATUS,
     KDS_TICKET_STATUS,
     EMAIL_ACTIONS,
+    AUTH_CHALLENGE_TYPES,
     PROMOTION_STATUS,
     VOUCHER_STATUS,
     CUSTOMER_VOUCHER_STATUS,
@@ -37,18 +40,65 @@ const {
     Promotion,
     Voucher,
     VoucherTier,
-    CustomerVoucher
+    CustomerVoucher,
+    CustomerAuthChallenge
 } = models;
 
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_SALT_ROUNDS = 10;
 const LOYALTY_POINT_VALUE_CENTS = 10;
+const PIN_MIN_LENGTH = 4;
+const PIN_MAX_LENGTH = 6;
+const TOTP_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const MAX_CHALLENGE_ATTEMPTS = 5;
+const AUTHENTICATOR_WINDOW = 1;
+
 const buildVerificationUrl = (verificationId, token) => {
     const base = (env.app.customerAppUrl || env.app.appUrl) || env.app.appUrl;
     const baseUrl = base.endsWith('/') ? base : `${base}/`;
     // Note: route is /customer/memberships/verify (plural) — keep consistent with customer.routes
     return `${baseUrl}customer/memberships/verify?verificationId=${verificationId}&token=${token}`;
+};
+
+const normalizeCode = (code) => String(code || '').trim();
+const normalizePin = (pin) => String(pin || '').trim();
+const isValidPinFormat = (pin) => /^[0-9]+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH;
+
+const hashPin = async (pin) => bcrypt.hash(pin, TOKEN_SALT_ROUNDS);
+
+const verifyPin = async (pin, hash) => bcrypt.compare(pin, hash || '');
+
+const buildAuthenticatorKeyUri = (customer, restaurantName, secretOverride) => {
+    const secret = secretOverride || customer.authenticatorSecret || null;
+    if (!secret) {
+        return null;
+    }
+    const label = customer.email || `${customer.firstName || 'guest'}@${restaurantName || 'omnichannel'}`;
+    const issuer = restaurantName || 'Omnichannel';
+    return authenticator.keyuri(label, issuer, secret);
+};
+
+authenticator.options = {
+    ...authenticator.options,
+    window: AUTHENTICATOR_WINDOW
+};
+
+const recordChallengeAttempt = async (challenge, { success }) => {
+    const metadata = { ...(challenge.metadata || {}) };
+    const updates = { metadata };
+
+    if (success) {
+        updates.consumedAt = new Date();
+    } else {
+        const nextAttempts = (challenge.attempts || 0) + 1;
+        updates.attempts = nextAttempts;
+        if (nextAttempts >= MAX_CHALLENGE_ATTEMPTS) {
+            updates.consumedAt = new Date();
+        }
+    }
+
+    await challenge.update(updates);
 };
 
 const resolveSession = async (sessionToken) => {
@@ -883,6 +933,216 @@ export const startSession = async ({ qrSlug, customer: customerPayload }) => {
     });
 };
 
+export const requestLoginChallenge = async ({ qrSlug, email, pin, method }) => {
+    if (!qrSlug) {
+        throw new Error('QR slug is required');
+    }
+
+    const targetEmail = String(email || '').trim();
+    if (!targetEmail) {
+        throw new Error('Email is required');
+    }
+
+    let normalizedMethod = typeof method === 'string' ? method.trim().toUpperCase() : 'PIN';
+    if (normalizedMethod !== 'AUTHENTICATOR') {
+        normalizedMethod = 'PIN';
+    }
+
+    const table = await RestaurantTable.findOne({
+        where: { qrSlug },
+        include: [{ model: Restaurant, as: 'restaurant' }]
+    });
+
+    if (!table || !table.restaurant) {
+        throw new Error('Restaurant table not found');
+    }
+
+    const customer = await Customer.findOne({
+        where: { email: targetEmail }
+    });
+
+    if (!customer) {
+        throw new Error('We could not find an account with that email.');
+    }
+
+    const membership = await RestaurantCustomer.findOne({
+        where: {
+            restaurantId: table.restaurantId,
+            customerId: customer.id
+        }
+    });
+
+    if (!membership || membership.status !== MEMBERSHIP_STATUS.MEMBER) {
+        throw new Error('This email is not registered as a member for this restaurant.');
+    }
+
+    if (normalizedMethod === 'PIN') {
+        const normalizedPin = normalizePin(pin);
+        if (!isValidPinFormat(normalizedPin)) {
+            throw new Error('PIN must be a 4–6 digit number.');
+        }
+        if (!membership.pinHash) {
+            throw new Error('This membership does not have a PIN yet.');
+        }
+        const pinMatches = await verifyPin(normalizedPin, membership.pinHash);
+        if (!pinMatches) {
+            throw new Error('Incorrect email or PIN.');
+        }
+    } else {
+        if (!customer.authenticatorEnabled || !customer.authenticatorSecret) {
+            throw new Error('Authenticator app is not enabled for this account.');
+        }
+    }
+
+    if (normalizedMethod === 'AUTHENTICATOR') {
+        if (!customer.authenticatorEnabled || !customer.authenticatorSecret) {
+            throw new Error('Authenticator app is not enabled for this account.');
+        }
+
+        await CustomerAuthChallenge.update(
+            { consumedAt: new Date() },
+            {
+                where: {
+                    customerId: customer.id,
+                    restaurantId: table.restaurantId,
+                    consumedAt: null
+                }
+            }
+        );
+
+        const challenge = await CustomerAuthChallenge.create({
+            customerId: customer.id,
+            restaurantId: table.restaurantId,
+            challengeType: AUTH_CHALLENGE_TYPES.TOTP,
+            expiresAt: new Date(Date.now() + TOTP_CHALLENGE_TTL_MS),
+            metadata: {
+                qrSlug
+            }
+        });
+
+        return {
+            requiresTotp: true,
+            challengeId: challenge.id,
+            expiresAt: challenge.expiresAt
+        };
+    }
+
+    const sessionDetails = await startSession({
+        qrSlug,
+        customer: {
+            email: customer.email,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            phoneNumber: customer.phoneNumber,
+            membershipNumber: customer.membershipNumber,
+            isMember: true
+        }
+    });
+
+    return {
+        requiresTotp: false,
+        authenticatedWith: 'PIN',
+        qrSlug,
+        ...sessionDetails
+    };
+};
+
+export const verifyLoginChallenge = async ({ qrSlug, challengeId, code }) => {
+    if (!qrSlug) {
+        throw new Error('QR slug is required');
+    }
+    if (!challengeId) {
+        throw new Error('Challenge identifier is required');
+    }
+
+    const normalizedCode = normalizeCode(code);
+    if (!normalizedCode) {
+        throw new Error('Authentication code is required');
+    }
+
+    const challenge = await CustomerAuthChallenge.findByPk(challengeId);
+    if (!challenge) {
+        throw new Error('Authentication request not found');
+    }
+
+    if (challenge.consumedAt) {
+        throw new Error('Authentication request has already been used');
+    }
+
+    const challengeType = challenge.challengeType || challenge.challenge_type || challenge.method || null;
+
+    if (challengeType !== AUTH_CHALLENGE_TYPES.TOTP) {
+        throw new Error('Unsupported authentication challenge');
+    }
+
+    if (challenge.expiresAt < new Date()) {
+        await recordChallengeAttempt(challenge, { success: false });
+        throw new Error('Authentication request has expired. Please request a new code.');
+    }
+
+    if (challenge.attempts >= MAX_CHALLENGE_ATTEMPTS) {
+        await challenge.update({ consumedAt: new Date() });
+        throw new Error('Too many invalid attempts. Please start again.');
+    }
+
+    const table = await RestaurantTable.findOne({
+        where: { qrSlug },
+        include: [{ model: Restaurant, as: 'restaurant' }]
+    });
+
+    if (!table || !table.restaurant) {
+        throw new Error('Restaurant table not found');
+    }
+
+    if (challenge.restaurantId !== table.restaurantId) {
+        await recordChallengeAttempt(challenge, { success: false });
+        throw new Error('Authentication request does not match this restaurant.');
+    }
+
+    const customer = await Customer.findByPk(challenge.customerId);
+    if (!customer) {
+        await recordChallengeAttempt(challenge, { success: false });
+        throw new Error('Customer account not found.');
+    }
+
+    if (!customer.authenticatorEnabled || !customer.authenticatorSecret) {
+        throw new Error('Authenticator app is not enabled for this account.');
+    }
+
+    const metadata = challenge.metadata || {};
+    if (metadata.qrSlug && metadata.qrSlug !== qrSlug) {
+        await recordChallengeAttempt(challenge, { success: false });
+        throw new Error('Authentication request does not match this table.');
+    }
+
+    const valid = authenticator.check(normalizedCode, customer.authenticatorSecret);
+    if (!valid) {
+        await recordChallengeAttempt(challenge, { success: false });
+        throw new Error('Invalid authentication code');
+    }
+
+    await recordChallengeAttempt(challenge, { success: true });
+
+    const sessionDetails = await startSession({
+        qrSlug,
+        customer: {
+            email: customer.email,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            phoneNumber: customer.phoneNumber,
+            membershipNumber: customer.membershipNumber,
+            isMember: true
+        }
+    });
+
+    return {
+        requiresTotp: false,
+        ...sessionDetails,
+        qrSlug,
+        authenticatedWith: AUTH_CHALLENGE_TYPES.TOTP
+    };
+};
+
 export const getMenuForSession = async (sessionToken) => {
     const session = await resolveSession(sessionToken);
 
@@ -943,6 +1203,223 @@ export const getMenuForSession = async (sessionToken) => {
                 imageUrl: normalizeAssetUrl(item.imageUrl)
             }))
         }))
+    };
+};
+
+export const getCustomerProfile = async (sessionToken) => {
+    const session = await resolveSession(sessionToken);
+
+    const customerRecord = session.customerId ? await Customer.findByPk(session.customerId) : null;
+    const membershipRecord =
+        session.customerId &&
+        (await RestaurantCustomer.findOne({
+            where: {
+                restaurantId: session.restaurantId,
+                customerId: session.customerId
+            }
+        }));
+
+    const authenticatorEnabled = Boolean(customerRecord?.authenticatorEnabled);
+    const authenticatorConfiguredAt = customerRecord?.authenticatorEnabledAt || null;
+
+    return {
+        restaurant: {
+            id: session.restaurantId,
+            name: session.restaurant?.name || null
+        },
+        table: session.table
+            ? {
+                  id: session.table.id,
+                  name: session.table.name
+              }
+            : null,
+        customer: customerRecord
+            ? {
+                  id: customerRecord.id,
+                  firstName: customerRecord.firstName,
+                  lastName: customerRecord.lastName,
+                  email: customerRecord.email,
+                  phoneNumber: customerRecord.phoneNumber
+              }
+            : {
+                  firstName: session.customerMeta?.firstName || null,
+                  lastName: session.customerMeta?.lastName || null,
+                  email: session.customerMeta?.email || null,
+                  phoneNumber: session.customerMeta?.phoneNumber || null
+              },
+        membership: membershipRecord
+            ? {
+                  status: membershipRecord.status,
+                  loyaltyPoints: membershipRecord.loyaltyPoints,
+                  discountBalanceCents: membershipRecord.discountBalanceCents,
+                  pinSetAt: membershipRecord.pinSetAt || null
+              }
+            : {
+                  status: session.membershipStatus
+              },
+        authenticator: {
+            enabled: authenticatorEnabled,
+            configuredAt: authenticatorConfiguredAt
+        },
+        authentication: {
+            methods: [
+                'PIN',
+                ...(authenticatorEnabled && customerRecord?.authenticatorSecret ? ['AUTHENTICATOR'] : [])
+            ],
+            pinSet: Boolean(membershipRecord?.pinHash),
+            pinUpdatedAt: membershipRecord?.pinSetAt || null
+        }
+    };
+};
+
+export const startAuthenticatorSetup = async (sessionToken) => {
+    const session = await resolveSession(sessionToken);
+
+    if (!session.customerId) {
+        throw new Error('Customer details are required before configuring an authenticator.');
+    }
+
+    const customer = await Customer.findByPk(session.customerId);
+    if (!customer) {
+        throw new Error('Customer account not found.');
+    }
+
+    const secret = authenticator.generateSecret();
+
+    await customer.update({
+        authenticatorSecret: secret,
+        authenticatorEnabled: false,
+        authenticatorEnabledAt: null
+    });
+
+    const otpauthUrl = buildAuthenticatorKeyUri(customer, session.restaurant?.name, secret);
+    let qrCodeDataUrl = null;
+    if (otpauthUrl) {
+        try {
+            qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, {
+                errorCorrectionLevel: 'M',
+                margin: 1,
+                scale: 6
+            });
+        } catch (error) {
+            logger.warn('Failed to render authenticator QR code', {
+                message: error.message,
+                customerId: customer.id,
+                restaurantId: session.restaurantId
+            });
+        }
+    }
+
+    return {
+        secret,
+        otpauthUrl,
+        enabled: false,
+        qrCodeDataUrl
+    };
+};
+
+export const confirmAuthenticatorSetup = async (sessionToken, code) => {
+    const session = await resolveSession(sessionToken);
+
+    if (!session.customerId) {
+        throw new Error('Customer details are required to verify authenticator codes.');
+    }
+
+    const customer = await Customer.findByPk(session.customerId);
+    if (!customer || !customer.authenticatorSecret) {
+        throw new Error('Authenticator setup has not been initiated.');
+    }
+
+    const normalizedCode = normalizeCode(code);
+    if (!normalizedCode) {
+        throw new Error('Authentication code is required');
+    }
+
+    const valid = authenticator.check(normalizedCode, customer.authenticatorSecret);
+    if (!valid) {
+        throw new Error('Invalid authentication code');
+    }
+
+    const enabledAt = new Date();
+
+    await customer.update({
+        authenticatorEnabled: true,
+        authenticatorEnabledAt: enabledAt
+    });
+
+    return {
+        enabled: true,
+        configuredAt: enabledAt
+    };
+};
+
+export const disableAuthenticator = async (sessionToken) => {
+    const session = await resolveSession(sessionToken);
+
+    if (!session.customerId) {
+        throw new Error('Customer details are required to manage authenticator settings.');
+    }
+
+    const customer = await Customer.findByPk(session.customerId);
+    if (!customer) {
+        throw new Error('Customer account not found.');
+    }
+
+    await customer.update({
+        authenticatorEnabled: false,
+        authenticatorEnabledAt: null,
+        authenticatorSecret: null
+    });
+
+    return {
+        enabled: false
+    };
+};
+
+export const updateMembershipPin = async (sessionToken, { currentPin, newPin }) => {
+    const session = await resolveSession(sessionToken);
+
+    if (!session.customerId) {
+        throw new Error('Customer details are required to manage your PIN.');
+    }
+
+    const membership = await RestaurantCustomer.findOne({
+        where: {
+            restaurantId: session.restaurantId,
+            customerId: session.customerId
+        }
+    });
+
+    if (!membership) {
+        throw new Error('Membership record not found for this restaurant.');
+    }
+
+    const normalizedCurrent = currentPin !== undefined && currentPin !== null ? normalizePin(currentPin) : null;
+    const normalizedNew = normalizePin(newPin);
+
+    if (!isValidPinFormat(normalizedNew)) {
+        throw new Error(`PIN must be a ${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH}-digit number.`);
+    }
+
+    if (membership.pinHash) {
+        if (!normalizedCurrent) {
+            throw new Error('Current PIN is required.');
+        }
+        const matches = await verifyPin(normalizedCurrent, membership.pinHash);
+        if (!matches) {
+            throw new Error('Current PIN is incorrect.');
+        }
+    }
+
+    const pinHash = await hashPin(normalizedNew);
+    const pinSetAt = new Date();
+    await membership.update({
+        pinHash,
+        pinSetAt
+    });
+
+    return {
+        pinUpdatedAt: pinSetAt
     };
 };
 
@@ -1539,6 +2016,15 @@ export const submitOrderRatings = async (sessionToken, orderId, ratings = []) =>
 export const requestMembershipVerification = async ({ sessionToken, customer: customerPayload = {} }) => {
     const session = await resolveSession(sessionToken);
 
+    const requestedPinRaw = Object.prototype.hasOwnProperty.call(customerPayload, 'pin')
+        ? customerPayload.pin
+        : null;
+    const requestedPin = requestedPinRaw !== null && requestedPinRaw !== undefined ? normalizePin(requestedPinRaw) : null;
+
+    if (requestedPin && !isValidPinFormat(requestedPin)) {
+        throw new Error(`PIN must be a ${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH}-digit number.`);
+    }
+
     const normalizedPayload = {
         firstName: customerPayload.firstName ?? session.customer?.firstName ?? null,
         lastName: customerPayload.lastName ?? session.customer?.lastName ?? null,
@@ -1554,8 +2040,27 @@ export const requestMembershipVerification = async ({ sessionToken, customer: cu
     return sequelize.transaction(async (transaction) => {
         const { customer, membership } = await upsertCustomer(normalizedPayload, session.restaurantId, transaction);
 
+        if (!membership) {
+            throw new Error('Membership could not be created');
+        }
+
+        if (!membership.pinHash && !requestedPin) {
+            throw new Error('Select a PIN to secure your membership.');
+        }
+
+        if (requestedPin) {
+            const pinHash = await hashPin(requestedPin);
+            await membership.update(
+                {
+                    pinHash,
+                    pinSetAt: new Date()
+                },
+                { transaction }
+            );
+        }
+
         // If the customer is already a member, there's no need to create a verification token or send an email.
-        if (membership && membership.status === MEMBERSHIP_STATUS.MEMBER) {
+        if (membership.status === MEMBERSHIP_STATUS.MEMBER) {
             return {
                 customerId: customer.id,
                 restaurantId: session.restaurantId,
