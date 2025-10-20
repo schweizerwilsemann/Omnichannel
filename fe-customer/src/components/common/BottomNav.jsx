@@ -19,6 +19,9 @@ const BottomNav = () => {
             <NavLink to="/vouchers" className="customer-bottom-nav__link">
                 Vouchers
             </NavLink>
+            <NavLink to="/profile" className="customer-bottom-nav__link">
+                Profile
+            </NavLink>
         </nav>
     );
 };

@@ -15,6 +15,7 @@ import VerifyPendingPage from './pages/VerifyPendingPage.jsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
 import VoucherClaimPage from './pages/VoucherClaimPage.jsx';
 import VouchersPage from './pages/VouchersPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 
 const AppContent = () => {
     const location = useLocation();
@@ -77,6 +78,7 @@ const AppContent = () => {
                         <Route path="/checkout" element={<CheckoutPage />} />
                         <Route path="/orders" element={<OrdersPage />} />
                         <Route path="/vouchers" element={<VouchersPage />} />
+                        <Route path="/profile" element={<ProfilePage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </main>
