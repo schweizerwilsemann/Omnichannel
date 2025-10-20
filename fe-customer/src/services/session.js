@@ -30,3 +30,12 @@ export const closeSession = (params) => api.post('/customer/sessions/close', nul
 
 export const fetchActiveSession = (sessionToken) => api.get('/customer/sessions/active', { params: { sessionToken } });
 
+export const requestLoginChallenge = (payload) => api.post('/customer/auth/login/challenge', payload);
+export const verifyLoginChallenge = (payload) => api.post('/customer/auth/login/verify', payload);
+export const fetchCustomerProfile = (sessionToken) => api.get('/customer/profile', { params: { sessionToken } });
+export const startAuthenticatorSetup = (payload) => api.post('/customer/profile/authenticator/setup', payload);
+export const confirmAuthenticatorSetup = (payload) => api.post('/customer/profile/authenticator/verify', payload);
+export const disableAuthenticator = (sessionToken) =>
+    api.delete('/customer/profile/authenticator', { params: { sessionToken } });
+export const updateMembershipPin = (payload) => api.post('/customer/profile/pin', payload);
+
