@@ -15,6 +15,32 @@ export const startSessionSchema = Joi.object({
         .default(undefined)
 });
 
+export const loginChallengeSchema = Joi.object({
+    qrSlug: Joi.string().trim().required(),
+    email: Joi.string().email().required(),
+    method: Joi.string()
+        .valid('PIN', 'AUTHENTICATOR')
+        .default('PIN'),
+    pin: Joi.when('method', {
+        is: 'PIN',
+        then: Joi.string()
+            .pattern(/^[0-9]{4,6}$/)
+            .required(),
+        otherwise: Joi.string()
+            .pattern(/^[0-9]{4,6}$/)
+            .allow(null, '')
+            .optional()
+    })
+});
+
+export const loginVerifySchema = Joi.object({
+    qrSlug: Joi.string().trim().required(),
+    challengeId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    code: Joi.string()
+        .pattern(/^[0-9]{6}$/)
+        .required()
+});
+
 export const sessionTokenQuerySchema = Joi.object({
     sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required()
 });
@@ -45,7 +71,10 @@ export const membershipRegistrationSchema = Joi.object({
         lastName: Joi.string().max(80).allow(null, ''),
         email: Joi.string().email().required(),
         phoneNumber: Joi.string().max(20).allow(null, ''),
-        membershipNumber: Joi.string().max(80).allow(null, '')
+        membershipNumber: Joi.string().max(80).allow(null, ''),
+        pin: Joi.string()
+            .pattern(/^[0-9]{4,6}$/)
+            .required()
     })
         .required()
 });
@@ -60,6 +89,26 @@ export const membershipStatusQuerySchema = Joi.object({
 });
 export const qrSlugQuerySchema = Joi.object({
     qrSlug: Joi.string().trim().required()
+});
+
+export const sessionTokenBodySchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required()
+});
+
+export const authenticatorVerifySchema = sessionTokenBodySchema.keys({
+    code: Joi.string()
+        .pattern(/^[0-9]{6}$/)
+        .required()
+});
+
+export const pinUpdateSchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    currentPin: Joi.string()
+        .pattern(/^[0-9]{4,6}$/)
+        .allow(null, ''),
+    newPin: Joi.string()
+        .pattern(/^[0-9]{4,6}$/)
+        .required()
 });
 
 export const loyaltyClaimSchema = Joi.object({
