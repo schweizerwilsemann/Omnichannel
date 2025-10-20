@@ -7,6 +7,7 @@ import ErrorScreen from './components/common/ErrorScreen.jsx';
 import SessionSetup from './components/common/SessionSetup.jsx';
 import HeaderBar from './components/common/HeaderBar.jsx';
 import BottomNav from './components/common/BottomNav.jsx';
+import ChatAssistant from './components/chat/ChatAssistant.jsx';
 import MenuPage from './pages/MenuPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
@@ -62,6 +63,7 @@ const AppContent = () => {
                             <Route path="*" element={<VerifyPendingPage />} />
                         </Routes>
                     </main>
+                    <ChatAssistant />
                 </div>
             );
         }
@@ -79,6 +81,7 @@ const AppContent = () => {
                     </Routes>
                 </main>
                 <BottomNav />
+                <ChatAssistant />
             </div>
         );
     }
