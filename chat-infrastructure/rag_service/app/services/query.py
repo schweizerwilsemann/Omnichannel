@@ -8,6 +8,7 @@ from .cache import get_cached_answer, set_cached_answer
 from .embedding import embed_texts
 from .generator import generate_answer
 from .vectorstore import search
+from qdrant_client.http import models as qm
 
 
 async def answer_question(request: RagQueryRequest) -> Tuple[str, List[SourceChunk], bool]:
@@ -19,7 +20,17 @@ async def answer_question(request: RagQueryRequest) -> Tuple[str, List[SourceChu
 
     question_embedding = (await embed_texts([request.question]))[0]
     top_k = request.top_k or settings.max_result_chunks
-    results = await search(question_embedding, top_k)
+    query_filter = None
+    if request.restaurant_id:
+        query_filter = qm.Filter(
+            must=[
+                qm.FieldCondition(
+                    key="restaurant_id",
+                    match=qm.MatchValue(value=request.restaurant_id),
+                )
+            ]
+        )
+    results = await search(question_embedding, top_k, query_filter)
 
     context_snippets: List[str] = []
     sources: List[SourceChunk] = []
