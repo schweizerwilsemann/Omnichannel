@@ -27,6 +27,11 @@ const restaurantModel = (sequelize) =>
                 type: DataTypes.JSON,
                 allowNull: true
             },
+            businessHours: {
+                type: DataTypes.JSON,
+                allowNull: true,
+                field: 'business_hours'
+            },
             timezone: {
                 type: DataTypes.STRING(50),
                 allowNull: false,
