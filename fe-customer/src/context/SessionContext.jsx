@@ -9,7 +9,6 @@ import {
     claimCustomerVoucher as claimVoucherApi
 } from '../services/session.js';
 import { openOrdersStream } from '../services/session.js';
-import { toast } from 'react-toastify';
 
 const SessionContext = createContext(null);
 
@@ -348,7 +347,7 @@ export const SessionProvider = ({ children }) => {
                         const storedCustomerId = stored.customerId || stored.customer?.id || stored.membership?.customerId || null;
                         const storedRestaurantId = stored.restaurant?.id || stored.restaurantId || null;
                         if (String(storedCustomerId) === String(customerIdParam) && String(storedRestaurantId) === String(restaurantIdParam)) {
-                            const forcedStatus = membershipStatusParam || 'MEMBER';
+                            let forcedStatus = membershipStatusParam || 'MEMBER';
                             // try server-side membership lookup to confirm status
                             try {
                                 const statusRes = await (await import('../services/session.js')).getMembershipStatus({ customerId: customerIdParam, restaurantId: restaurantIdParam });
