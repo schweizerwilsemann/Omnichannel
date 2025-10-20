@@ -25,6 +25,7 @@ uvicorn app.main:app --reload
 Tip: create a dedicated environment with `python3 -m venv .venv` and activate it via `source .venv/bin/activate` before installing dependencies.
 
 Environment variables can be set via `.env` (see `.env.example`).
+If the customer UI runs on a different origin, set `CORS_ALLOW_ORIGINS` (comma-separated) so browsers can reach the service from that host.
 
 ### Example Requests
 

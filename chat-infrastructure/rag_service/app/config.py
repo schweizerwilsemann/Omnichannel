@@ -15,8 +15,16 @@ class Settings(BaseSettings):
     ollama_generate_model: str = Field("mistral:7b-instruct", alias="OLLAMA_GENERATE_MODEL")
     max_result_chunks: int = Field(5, alias="MAX_RESULT_CHUNKS")
     cache_ttl_seconds: int = Field(600, alias="CACHE_TTL_SECONDS")
+    cors_allow_origins: str = Field("*", alias="CORS_ALLOW_ORIGINS")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @property
+    def cors_allow_origins_list(self) -> list[str]:
+        value = (self.cors_allow_origins or "").strip()
+        if not value or value == "*":
+            return ["*"]
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
 @lru_cache()

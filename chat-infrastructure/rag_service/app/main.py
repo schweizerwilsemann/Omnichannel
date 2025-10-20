@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .routers import rag
@@ -12,6 +13,15 @@ def create_app() -> FastAPI:
         title="Restaurant RAG Service",
         description="Retrieval augmented generation service for customer support.",
         version="0.1.0",
+    )
+
+    allow_origins = settings.cors_allow_origins_list
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     @app.get("/")
