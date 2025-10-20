@@ -52,6 +52,16 @@ const restaurantCustomerModel = (sequelize) =>
                 type: DataTypes.DATE,
                 allowNull: true,
                 field: 'last_claimed_at'
+            },
+            pinHash: {
+                type: DataTypes.STRING(255),
+                allowNull: true,
+                field: 'pin_hash'
+            },
+            pinSetAt: {
+                type: DataTypes.DATE,
+                allowNull: true,
+                field: 'pin_set_at'
             }
         },
         {
