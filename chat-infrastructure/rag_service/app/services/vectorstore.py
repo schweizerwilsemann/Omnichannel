@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 from uuid import uuid4
 
 from qdrant_client import QdrantClient
@@ -50,7 +50,7 @@ async def upsert_embeddings(embeddings: Sequence[Sequence[float]], payloads: Seq
     await asyncio.to_thread(_upsert)
 
 
-async def search(embedding: Sequence[float], limit: int) -> List[qm.ScoredPoint]:
+async def search(embedding: Sequence[float], limit: int, flt: Optional[qm.Filter] = None) -> List[qm.ScoredPoint]:
     settings = get_settings()
     client = get_client()
 
@@ -60,6 +60,7 @@ async def search(embedding: Sequence[float], limit: int) -> List[qm.ScoredPoint]
             query_vector=list(embedding),
             limit=limit,
             with_payload=True,
+            query_filter=flt,
         )
 
     return await asyncio.to_thread(_search)
