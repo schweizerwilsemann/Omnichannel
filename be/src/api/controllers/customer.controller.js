@@ -13,7 +13,14 @@ import {
     listActivePromotions,
     listCustomerVouchers,
     claimPromotionVoucher,
-    claimPromotionVoucherByToken
+    claimPromotionVoucherByToken,
+    requestLoginChallenge,
+    verifyLoginChallenge,
+    getCustomerProfile,
+    startAuthenticatorSetup,
+    confirmAuthenticatorSetup,
+    disableAuthenticator,
+    updateMembershipPin
 } from '../services/customer.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
@@ -27,6 +34,26 @@ export const startSessionController = async (req, res) => {
         return successResponse(res, result, 201);
     } catch (error) {
         logger.error('Failed to start customer session', { message: error.message });
+        return errorResponse(res, error.message, 400);
+    }
+};
+
+export const requestLoginChallengeController = async (req, res) => {
+    try {
+        const result = await requestLoginChallenge(req.body);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to initiate login challenge', { message: error.message });
+        return errorResponse(res, error.message, 400);
+    }
+};
+
+export const verifyLoginChallengeController = async (req, res) => {
+    try {
+        const result = await verifyLoginChallenge(req.body);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to verify login challenge', { message: error.message });
         return errorResponse(res, error.message, 400);
     }
 };
@@ -83,8 +110,65 @@ export const getActiveSessionController = async (req, res) => {
         const session = await getActiveSessionByToken(sessionToken);
         return successResponse(res, session, 200);
     } catch (error) {
-        logger.error('Failed to load active session', { message: error.message });
-        return errorResponse(res, error.message || 'Unable to load active session', 400);
+       logger.error('Failed to load active session', { message: error.message });
+       return errorResponse(res, error.message || 'Unable to load active session', 400);
+    }
+};
+
+export const getCustomerProfileController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const profile = await getCustomerProfile(sessionToken);
+        return successResponse(res, profile, 200);
+    } catch (error) {
+        logger.error('Failed to load customer profile', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load customer profile', 400);
+    }
+};
+
+export const startAuthenticatorSetupController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const payload = await startAuthenticatorSetup(sessionToken);
+        return successResponse(res, payload, 200);
+    } catch (error) {
+        logger.error('Failed to start authenticator setup', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to start authenticator setup', 400);
+    }
+};
+
+export const confirmAuthenticatorSetupController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const { code } = req.body;
+        const result = await confirmAuthenticatorSetup(sessionToken, code);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to verify authenticator setup', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to verify authenticator code', 400);
+    }
+};
+
+export const disableAuthenticatorController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const result = await disableAuthenticator(sessionToken);
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to disable authenticator', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to disable authenticator', 400);
+    }
+};
+
+export const updateMembershipPinController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const { currentPin, newPin } = req.body;
+        const result = await updateMembershipPin(sessionToken, { currentPin, newPin });
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to update membership PIN', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to update PIN', 400);
     }
 };
 
