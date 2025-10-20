@@ -16,6 +16,7 @@ const setupAssociations = (models) => {
         MenuCategory,
         MenuItem,
         GuestSession,
+        CustomerAuthChallenge,
         Order,
     OrderItem,
     OrderItemRating,
@@ -77,6 +78,12 @@ const setupAssociations = (models) => {
 
     Restaurant.hasMany(CustomerVerificationToken, { foreignKey: 'restaurant_id', as: 'verificationTokens' });
     CustomerVerificationToken.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+    Customer.hasMany(CustomerAuthChallenge, { foreignKey: 'customer_id', as: 'authChallenges' });
+    CustomerAuthChallenge.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+
+    Restaurant.hasMany(CustomerAuthChallenge, { foreignKey: 'restaurant_id', as: 'authChallenges' });
+    CustomerAuthChallenge.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
 
 
     Customer.hasMany(GuestSession, { foreignKey: 'customer_id', as: 'guestSessions' });
