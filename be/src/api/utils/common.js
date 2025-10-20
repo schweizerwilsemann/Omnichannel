@@ -6,6 +6,7 @@ export const TABLES = {
     RESTAURANT_STAFF: 'restaurant_staff',
     PASSWORD_RESET_TOKENS: 'password_reset_tokens',
     CUSTOMER_VERIFICATION_TOKENS: 'customer_verification_tokens',
+    CUSTOMER_AUTH_CHALLENGES: 'customer_auth_challenges',
     SECURITY_EVENTS: 'security_events',
     RESTAURANTS: 'restaurants',
     CUSTOMERS: 'customers',
@@ -83,5 +84,9 @@ export const CUSTOMER_VOUCHER_STATUS = Object.freeze({
 export const DISCOUNT_TYPES = Object.freeze({
     PERCENTAGE: 'PERCENTAGE',
     FIXED: 'FIXED'
+});
+
+export const AUTH_CHALLENGE_TYPES = Object.freeze({
+    TOTP: 'TOTP'
 });
 
