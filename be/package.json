@@ -10,6 +10,7 @@
     "bootstrap:owner": "node src/scripts/bootstrapOwner.js",
     "migrate": "node src/scripts/runMigration.js",
     "seed": "node seeders/index.js",
+    "recommendations:rebuild": "node src/scripts/buildRecommendations.js",
     "lint": "eslint .",
     "test": "jest"
   },

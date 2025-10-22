@@ -23,7 +23,8 @@ import {
     claimVoucherController,
     claimVoucherByTokenController,
     processPaymentController,
-    getPaymentIntentController
+    getPaymentIntentController,
+    getCartRecommendationsController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -41,7 +42,8 @@ import {
     pinUpdateSchema,
     voucherClaimSchema,
     voucherEmailClaimSchema,
-    paymentIntentParamSchema
+    paymentIntentParamSchema,
+    cartRecommendationsQuerySchema
 } from '../validations/customer.validation.js';
 
 const router = Router();
@@ -65,6 +67,11 @@ router.get('/vouchers', validationMiddleware(sessionTokenQuerySchema, 'query'), 
 router.post('/vouchers/claim', validationMiddleware(voucherClaimSchema), claimVoucherController);
 router.post('/vouchers/email-claim', validationMiddleware(voucherEmailClaimSchema), claimVoucherByTokenController);
 router.post('/payments/charge', validationMiddleware(processPaymentSchema), processPaymentController);
+router.get(
+    '/recommendations',
+    validationMiddleware(cartRecommendationsQuerySchema, 'query'),
+    getCartRecommendationsController
+);
 router.get(
     '/payments/:paymentIntentId',
     validationMiddleware(paymentIntentParamSchema, 'params'),

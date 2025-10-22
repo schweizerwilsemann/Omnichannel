@@ -1,5 +1,37 @@
 import Joi from 'joi';
 
+const uuidSchema = Joi.string().uuid({ version: 'uuidv4' });
+
+const parseUuidList = (value, helpers) => {
+    if (!value) {
+        return [];
+    }
+
+    if (Array.isArray(value)) {
+        const invalid = value.find((item) => uuidSchema.validate(item).error);
+        if (invalid) {
+            return helpers.error('string.guid');
+        }
+        return value;
+    }
+
+    const parts = String(value)
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    if (parts.length === 0) {
+        return [];
+    }
+
+    const invalid = parts.find((part) => uuidSchema.validate(part).error);
+    if (invalid) {
+        return helpers.error('string.guid');
+    }
+
+    return parts;
+};
+
 export const startSessionSchema = Joi.object({
     qrSlug: Joi.string().trim().required(),
     customer: Joi.object({
@@ -42,11 +74,11 @@ export const loginVerifySchema = Joi.object({
 });
 
 export const sessionTokenQuerySchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required()
+    sessionToken: uuidSchema.required()
 });
 
 export const placeOrderSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    sessionToken: uuidSchema.required(),
     items: Joi.array()
         .items(
             Joi.object({
@@ -67,11 +99,11 @@ export const placeOrderSchema = Joi.object({
 });
 
 export const processPaymentSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    sessionToken: uuidSchema.required(),
     items: Joi.array()
         .items(
             Joi.object({
-                menuItemId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+                menuItemId: uuidSchema.required(),
                 quantity: Joi.number().integer().min(1).default(1),
                 notes: Joi.string().max(500).allow(null, '').optional()
             })
@@ -107,7 +139,7 @@ export const processPaymentSchema = Joi.object({
 });
 
 export const membershipRegistrationSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    sessionToken: uuidSchema.required(),
     customer: Joi.object({
         firstName: Joi.string().max(80).required(),
         lastName: Joi.string().max(80).allow(null, ''),
@@ -122,19 +154,19 @@ export const membershipRegistrationSchema = Joi.object({
 });
 
 export const membershipVerifySchema = Joi.object({
-    verificationId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    verificationId: uuidSchema.required(),
     token: Joi.string().min(12).max(255).required()
 });
 export const membershipStatusQuerySchema = Joi.object({
-    customerId: Joi.string().uuid({ version: 'uuidv4' }).required(),
-    restaurantId: Joi.string().uuid({ version: 'uuidv4' }).required()
+    customerId: uuidSchema.required(),
+    restaurantId: uuidSchema.required()
 });
 export const qrSlugQuerySchema = Joi.object({
     qrSlug: Joi.string().trim().required()
 });
 
 export const sessionTokenBodySchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required()
+    sessionToken: uuidSchema.required()
 });
 
 export const authenticatorVerifySchema = sessionTokenBodySchema.keys({
@@ -144,7 +176,7 @@ export const authenticatorVerifySchema = sessionTokenBodySchema.keys({
 });
 
 export const pinUpdateSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    sessionToken: uuidSchema.required(),
     currentPin: Joi.string()
         .pattern(/^[0-9]{4,6}$/)
         .allow(null, ''),
@@ -154,29 +186,29 @@ export const pinUpdateSchema = Joi.object({
 });
 
 export const loyaltyClaimSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    sessionToken: uuidSchema.required(),
     points: Joi.number().integer().min(1).required()
 });
 
 export const voucherClaimSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
-    promotionId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
-    voucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
+    sessionToken: uuidSchema.required(),
+    promotionId: uuidSchema.allow(null, '').optional(),
+    voucherId: uuidSchema.allow(null, '').optional(),
     channel: Joi.string().max(40).allow(null, '').default('CUSTOMER_APP')
 }).or('promotionId', 'voucherId');
 
 export const voucherEmailClaimSchema = Joi.object({
     token: Joi.string().min(10).required(),
-    promotionId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
-    voucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional()
+    promotionId: uuidSchema.allow(null, '').optional(),
+    voucherId: uuidSchema.allow(null, '').optional()
 });
 
 export const orderRatingSchema = Joi.object({
-    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    sessionToken: uuidSchema.required(),
     ratings: Joi.array()
         .items(
             Joi.object({
-                orderItemId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+                orderItemId: uuidSchema.required(),
                 rating: Joi.number().integer().min(1).max(5).required(),
                 comment: Joi.string().max(500).allow(null, '').optional()
             })
@@ -186,9 +218,21 @@ export const orderRatingSchema = Joi.object({
 });
 
 export const orderIdParamSchema = Joi.object({
-    orderId: Joi.string().uuid({ version: 'uuidv4' }).required()
+    orderId: uuidSchema.required()
 });
 
 export const paymentIntentParamSchema = Joi.object({
     paymentIntentId: Joi.string().min(10).required()
+});
+
+export const cartRecommendationsQuerySchema = sessionTokenQuerySchema.keys({
+    items: Joi.alternatives()
+        .try(Joi.array().items(uuidSchema).min(1), Joi.string().custom(parseUuidList))
+        .default([])
+        .optional(),
+    exclude: Joi.alternatives()
+        .try(Joi.array().items(uuidSchema).min(1), Joi.string().custom(parseUuidList))
+        .default([])
+        .optional(),
+    limit: Joi.number().integer().min(1).max(12).default(5)
 });

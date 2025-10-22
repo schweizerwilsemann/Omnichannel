@@ -22,6 +22,7 @@ import {
     disableAuthenticator,
     updateMembershipPin
 } from '../services/customer.service.js';
+import { getCartRecommendations as fetchCartRecommendations } from '../services/recommendation.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
 import { registerCustomerOrderStream } from '../services/realtime.service.js';
@@ -67,6 +68,25 @@ export const getMenuController = async (req, res) => {
     } catch (error) {
         logger.error('Failed to fetch customer menu', { message: error.message });
         return errorResponse(res, error.message, 400);
+    }
+};
+
+export const getCartRecommendationsController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const items = Array.isArray(req.query.items) ? req.query.items : [];
+        const exclude = Array.isArray(req.query.exclude) ? req.query.exclude : [];
+        const limit = Number.parseInt(req.query.limit, 10) || 5;
+
+        const result = await fetchCartRecommendations(sessionToken, items, {
+            excludeItemIds: exclude,
+            limit
+        });
+
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to fetch cart recommendations', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to fetch recommendations', 400);
     }
 };
 

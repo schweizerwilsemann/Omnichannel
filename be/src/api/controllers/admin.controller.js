@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import models from '../models/index.js';
 import { getDashboardSummary } from '../services/dashboard.service.js';
+import { listRecommendationAnalytics } from '../services/recommendation.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
 import { notifySessionClosed } from '../services/realtime.service.js';
@@ -147,10 +148,27 @@ export const getDashboardOverviewController = async (req, res) => {
     }
 };
 
+export const listMenuRecommendationsController = async (req, res) => {
+    try {
+        const restaurantIds = req.user?.restaurantIds || [];
+        const options = {
+            restaurantId: req.query.restaurantId || undefined,
+            minAttachRate: Number.isFinite(req.query.minAttachRate) ? req.query.minAttachRate : undefined,
+            limit: Number.isFinite(req.query.limit) ? req.query.limit : undefined
+        };
+        const analytics = await listRecommendationAnalytics(restaurantIds, options);
+        return successResponse(res, analytics, 200);
+    } catch (error) {
+        logger.error('Failed to load recommendation analytics', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load recommendation analytics', 400);
+    }
+};
+
 export default {
     listActiveTablesController,
     closeGuestSessionController,
-    getDashboardOverviewController
+    getDashboardOverviewController,
+    listMenuRecommendationsController
 };
 
 

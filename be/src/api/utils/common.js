@@ -24,7 +24,8 @@ export const TABLES = {
     PROMOTIONS: 'promotions',
     VOUCHERS: 'vouchers',
     VOUCHER_TIERS: 'voucher_tiers',
-    CUSTOMER_VOUCHERS: 'customer_vouchers'
+    CUSTOMER_VOUCHERS: 'customer_vouchers',
+    MENU_RECOMMENDATIONS: 'menu_recommendations'
 };
 
 export const USER_ROLES = Object.freeze({ OWNER: 'OWNER', MANAGER: 'MANAGER' });
