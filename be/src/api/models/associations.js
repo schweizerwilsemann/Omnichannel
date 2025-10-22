@@ -27,7 +27,8 @@ const setupAssociations = (models) => {
         Promotion,
         Voucher,
         VoucherTier,
-        CustomerVoucher
+        CustomerVoucher,
+        MenuRecommendation
     } = models;
 
     User.hasOne(UserCredential, { foreignKey: 'user_id', as: 'credential' });
@@ -155,7 +156,15 @@ const setupAssociations = (models) => {
 
     Order.belongsTo(CustomerVoucher, { foreignKey: 'customer_voucher_id', as: 'customerVoucher' });
     CustomerVoucher.hasMany(Order, { foreignKey: 'customer_voucher_id', as: 'orders' });
+
+    Restaurant.hasMany(MenuRecommendation, { foreignKey: 'restaurant_id', as: 'menuRecommendations' });
+    MenuRecommendation.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+    MenuItem.hasMany(MenuRecommendation, { foreignKey: 'base_item_id', as: 'recommendationsAsBase' });
+    MenuRecommendation.belongsTo(MenuItem, { foreignKey: 'base_item_id', as: 'baseItem' });
+
+    MenuItem.hasMany(MenuRecommendation, { foreignKey: 'recommended_item_id', as: 'recommendationsAsCompanion' });
+    MenuRecommendation.belongsTo(MenuItem, { foreignKey: 'recommended_item_id', as: 'recommendedItem' });
 };
 
 export default setupAssociations;
-
