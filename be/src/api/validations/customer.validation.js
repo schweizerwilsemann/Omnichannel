@@ -61,7 +61,49 @@ export const placeOrderSchema = Joi.object({
     applyLoyaltyDiscount: Joi.boolean().optional().default(false),
     loyaltyPointsToRedeem: Joi.number().integer().min(0).optional(),
     customerVoucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
-    voucherCode: Joi.string().max(120).allow(null, '').optional()
+    voucherCode: Joi.string().max(120).allow(null, '').optional(),
+    paymentIntentId: Joi.string().min(10).allow(null, '').optional(),
+    payInCash: Joi.boolean().optional().default(false)
+});
+
+export const processPaymentSchema = Joi.object({
+    sessionToken: Joi.string().uuid({ version: 'uuidv4' }).required(),
+    items: Joi.array()
+        .items(
+            Joi.object({
+                menuItemId: Joi.string().uuid({ version: 'uuidv4' }).required(),
+                quantity: Joi.number().integer().min(1).default(1),
+                notes: Joi.string().max(500).allow(null, '').optional()
+            })
+        )
+        .min(1)
+        .required(),
+    applyLoyaltyDiscount: Joi.boolean().optional().default(false),
+    loyaltyPointsToRedeem: Joi.number().integer().min(0).optional(),
+    customerVoucherId: Joi.string().uuid({ version: 'uuidv4' }).allow(null, '').optional(),
+    voucherCode: Joi.string().max(120).allow(null, '').optional(),
+    card: Joi.object({
+        number: Joi.string()
+            .trim()
+            .required()
+            .custom((value, helpers) => {
+                const digits = value.replace(/\\D/g, '');
+                if (digits.length < 12 || digits.length > 19) {
+                    return helpers.error('card.number.length');
+                }
+                return value;
+            })
+            .messages({
+                'any.required': 'Card number is required',
+                'card.number.length': 'Card number must contain 12-19 digits. Use 4242 4242 4242 4242 to simulate success.'
+            }),
+        expMonth: Joi.number().integer().min(1).max(12).required(),
+        expYear: Joi.number().integer().min(new Date().getFullYear()).max(new Date().getFullYear() + 15).required(),
+        cvc: Joi.string()
+            .pattern(/^[0-9]{3,4}$/)
+            .required(),
+        name: Joi.string().max(120).allow(null, '').optional()
+    }).required()
 });
 
 export const membershipRegistrationSchema = Joi.object({
@@ -145,4 +187,8 @@ export const orderRatingSchema = Joi.object({
 
 export const orderIdParamSchema = Joi.object({
     orderId: Joi.string().uuid({ version: 'uuidv4' }).required()
+});
+
+export const paymentIntentParamSchema = Joi.object({
+    paymentIntentId: Joi.string().min(10).required()
 });
