@@ -41,6 +41,16 @@ export const ORDER_STATUS = Object.freeze({
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED'
 });
+export const PAYMENT_STATUS = Object.freeze({
+    PENDING: 'PENDING',
+    SUCCEEDED: 'SUCCEEDED',
+    FAILED: 'FAILED'
+});
+export const PAYMENT_METHOD = Object.freeze({
+    CARD: 'CARD',
+    CASH: 'CASH',
+    NONE: 'NONE'
+});
 export const KDS_TICKET_STATUS = Object.freeze({ QUEUED: 'QUEUED', IN_PROGRESS: 'IN_PROGRESS', READY: 'READY', COMPLETED: 'COMPLETED' });
 export const KDS_ACTIONS = Object.freeze({ ACCEPT: 'ACCEPT', MARK_READY: 'MARK_READY', CANCEL: 'CANCEL', COMPLETE: 'COMPLETE' });
 export const ACTOR_TYPE = Object.freeze({ USER: 'USER', AUTO: 'AUTO' });
