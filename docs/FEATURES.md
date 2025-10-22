@@ -212,7 +212,7 @@ export const dispatchPromotionEmails = async (restaurantIds = [], promotionId) =
 
 ## Configuration & Environment Highlights
 
-- **Backend `.env` essentials**: MySQL credentials, JWT secrets, crypto key, optional VNPAY + email settings, MinIO storage.
+- **Backend `.env` essentials**: MySQL credentials, JWT secrets, crypto key, optional Stripe keys for live mode, email settings, MinIO storage.
 - **Frontends**: `REACT_APP_BASE_URL` pointing to backend (`http://localhost:3301/api/v1` by default). Customer app can optionally set brand colours via CSS in `index.css`.
 - **Ports**: customer app defaults to 3030, admin app to CRA’s 3000, backend to 3301.
 
@@ -225,7 +225,7 @@ export const dispatchPromotionEmails = async (restaurantIds = [], promotionId) =
 ## Extending the Platform
 
 - **Menu & pricing**: add Sequelize migrations/services and expose new endpoints, then consume via React service modules.
-- **Payments**: VNPAY scaffold present; integrate by extending order service and checkout redirect/confirmation handlers.
+- **Payments**: Stripe-style mock gateway with detailed validation plus cashier cash handoff; swap in real Stripe keys and payment service to go live.
 - **Push notifications**: the `notifications` table and realtime service registry provide hooks for email/SMS/push integrations.
 - **Analytics**: follow the SSE registry pattern to introduce additional telemetry channels or upgrade to WebSockets.
 

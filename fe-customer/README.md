@@ -18,3 +18,9 @@ This package provides the customer-facing ordering experience for the Omnichanne
    ```
 
 The application expects to be opened with a `qr` query parameter (for example `http://localhost:3001/?qr=table-abc`).
+
+
+## Testing payments
+
+- Use the Stripe test card `4242 4242 4242 4242` with any future expiry/CVC to simulate a successful online payment.
+- Choose the *Pay at counter* option to mark the order as cash due; the backend records it with a pending payment status.

@@ -7,7 +7,7 @@ Restaurant ordering backend bootstrapped for QR-first dining with admin-only aut
 1. Copy `.env.example` to `.env` and fill values. Use the same credentials as the Rasops variant where applicable.
 2. Ensure `DB_NAME`, `DB_HOST`, `DB_USER`, and `DB_PASSWORD` point to a reachable MySQL instance.
 3. Provide `JWT_SECRET` and a 32-byte `CRYPTO_SECRET_KEY` (e.g. generated via `openssl rand -hex 16`).
-4. Populate VNPAY credentials (`VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_API_URL`, `VNPAY_RETURN_URL`) to enable payment callbacks.
+4. Configure Stripe keys (`STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`) if you plan to swap the mock gateway for a live Stripe account. The checkout flow ships with a server-side stripe simulation and works without real keys.
 5. Populate email and notification keys if email delivery is required; otherwise leave blank for local testing.
 6. Configure asset storage via `STORAGE_PROVIDER`, `STORAGE_BUCKET`, and the `MINIO_*` variables for MinIO-compatible object storage.
 
