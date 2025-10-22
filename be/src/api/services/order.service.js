@@ -90,6 +90,21 @@ const toAdminOrder = (orderInstance) => {
                   sessionToken: order.guestSession.sessionToken
               }
             : null,
+        payment: {
+            status: order.paymentStatus || null,
+            method: order.paymentMethod || null,
+            provider: order.paymentProvider || null,
+            intentId: order.paymentIntentId || null,
+            reference: order.paymentReference || null,
+            confirmedAt: order.paymentConfirmedAt || null,
+            card: order.paymentMetadata?.cardLast4
+                ? {
+                      brand: order.paymentMetadata.cardBrand || null,
+                      last4: order.paymentMetadata.cardLast4
+                  }
+                : null,
+            instructions: order.paymentMetadata?.instructions || null
+        },
         items: (order.items || []).map((item) => ({
             id: item.id,
             menuItemId: item.menuItemId,

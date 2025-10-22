@@ -3,7 +3,7 @@ import { verifyToken } from '../utils/jwt.js';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { listOrdersForAdmin, getOrderForAdmin, safeLoadOrderForEvent } from '../services/order.service.js';
 import { registerOrderStream, notifyOrderUpdated } from '../services/realtime.service.js';
-import { ORDER_STATUS } from '../utils/common.js';
+import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_METHOD } from '../utils/common.js';
 import models from '../models/index.js';
 
 const { Order } = models;
@@ -96,6 +96,59 @@ export const updateOrderStatusController = async (req, res) => {
         return successResponse(res, hydrated || { id: order.id, status: order.status }, 200);
     } catch (error) {
         return errorResponse(res, error.message || 'Unable to update order', 500);
+    }
+};
+
+export const updateOrderPaymentController = async (req, res) => {
+    try {
+        const { status } = req.body || {};
+        if (!status || !Object.values(PAYMENT_STATUS).includes(status)) {
+            return errorResponse(res, 'Invalid payment status', 400);
+        }
+
+        const { restaurantIds = [] } = req.user || {};
+        if (!restaurantIds.length) {
+            return errorResponse(res, 'No restaurant scope assigned', 403);
+        }
+
+        const where = { id: req.params.orderId };
+        if (restaurantIds.length > 0) {
+            where.restaurantId = { [Op.in]: restaurantIds };
+        }
+
+        const order = await Order.findOne({ where });
+        if (!order) {
+            return errorResponse(res, 'Order not found', 404);
+        }
+
+        if (order.paymentMethod !== PAYMENT_METHOD.CASH && order.paymentMethod !== PAYMENT_METHOD.NONE) {
+            return errorResponse(res, 'Only cashier-settled payments can be adjusted manually', 400);
+        }
+
+        if (status === PAYMENT_STATUS.SUCCEEDED) {
+            order.paymentStatus = PAYMENT_STATUS.SUCCEEDED;
+            order.paymentConfirmedAt = new Date();
+            if (!order.paymentProvider) {
+                order.paymentProvider = 'CASHIER';
+            }
+        } else {
+            order.paymentStatus = PAYMENT_STATUS.PENDING;
+            order.paymentConfirmedAt = null;
+            if (order.paymentProvider === 'CASHIER') {
+                order.paymentProvider = null;
+            }
+        }
+
+        await order.save();
+
+        const hydrated = await safeLoadOrderForEvent(order.id);
+        if (hydrated) {
+            notifyOrderUpdated(hydrated);
+        }
+
+        return successResponse(res, hydrated || { id: order.id, paymentStatus: order.paymentStatus }, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to update payment status', 500);
     }
 };
 

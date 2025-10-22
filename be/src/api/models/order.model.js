@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { TABLES, ORDER_STATUS } from '../utils/common.js';
+import { TABLES, ORDER_STATUS, PAYMENT_STATUS, PAYMENT_METHOD } from '../utils/common.js';
 
 const orderModel = (sequelize) =>
     sequelize.define(
@@ -74,6 +74,43 @@ const orderModel = (sequelize) =>
                 allowNull: false,
                 defaultValue: 0,
                 field: 'loyalty_points_redeemed'
+            },
+            paymentMethod: {
+                type: DataTypes.ENUM(...Object.values(PAYMENT_METHOD)),
+                allowNull: false,
+                defaultValue: PAYMENT_METHOD.CARD,
+                field: 'payment_method'
+            },
+            paymentStatus: {
+                type: DataTypes.ENUM(...Object.values(PAYMENT_STATUS)),
+                allowNull: false,
+                defaultValue: PAYMENT_STATUS.SUCCEEDED,
+                field: 'payment_status'
+            },
+            paymentProvider: {
+                type: DataTypes.STRING(40),
+                allowNull: true,
+                field: 'payment_provider'
+            },
+            paymentIntentId: {
+                type: DataTypes.STRING(120),
+                allowNull: true,
+                field: 'payment_intent_id'
+            },
+            paymentReference: {
+                type: DataTypes.STRING(120),
+                allowNull: true,
+                field: 'payment_reference'
+            },
+            paymentMetadata: {
+                type: DataTypes.JSON,
+                allowNull: true,
+                field: 'payment_metadata'
+            },
+            paymentConfirmedAt: {
+                type: DataTypes.DATE,
+                allowNull: true,
+                field: 'payment_confirmed_at'
             },
             specialRequest: {
                 type: DataTypes.TEXT,
