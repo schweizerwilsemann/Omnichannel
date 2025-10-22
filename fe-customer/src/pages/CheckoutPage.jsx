@@ -4,7 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext.jsx';
 import { useSession } from '../context/SessionContext.jsx';
-import { placeCustomerOrder, closeSession, processCustomerPayment } from '../services/session.js';
+import {
+    placeCustomerOrder,
+    closeSession,
+    processCustomerPayment,
+    fetchCartRecommendations
+} from '../services/session.js';
 import resolveAssetUrl from '../utils/assets.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
@@ -12,7 +17,10 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9c
 
 const CheckoutPage = () => {
     const navigate = useNavigate();
-    const { cartItems, cartQuantity, totalCents, incrementItem, decrementItem, clearCart } = useCart();
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+    const { cartItems, cartQuantity, totalCents, addItem, incrementItem, decrementItem, clearCart } = useCart();
     const { session, markOrdersDirty, updateSession, clearSession, vouchers, refreshPromotions } = useSession();
     const [placingOrder, setPlacingOrder] = useState(false);
     const discountBalanceCents = session?.membership?.discountBalanceCents ?? 0;
@@ -29,6 +37,9 @@ const CheckoutPage = () => {
     const [processingPayment, setProcessingPayment] = useState(false);
     const [paymentIntent, setPaymentIntent] = useState(null);
     const [paymentError, setPaymentError] = useState('');
+    const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+    const [recommendations, setRecommendations] = useState([]);
+    const [recommendationError, setRecommendationError] = useState('');
     const availableCustomerVouchers = useMemo(() => vouchers?.available || [], [vouchers]);
     const selectedVoucher = useMemo(
         () => availableCustomerVouchers.find((voucher) => voucher.id === selectedVoucherId) || null,
@@ -86,6 +97,7 @@ const CheckoutPage = () => {
             ),
         [cartItems]
     );
+    const cartItemIds = useMemo(() => cartItems.map((item) => item.id), [cartItems]);
     useEffect(() => {
         if (discountBalanceCents === 0 && useDiscount) {
             setUseDiscount(false);
@@ -123,6 +135,47 @@ const CheckoutPage = () => {
             resetCardTouched();
         }
     }, [paymentIntent]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadRecommendations = async () => {
+            if (!session?.sessionToken || cartItems.length === 0) {
+                if (!cancelled) {
+                    setRecommendations([]);
+                    setRecommendationError('');
+                }
+                return;
+            }
+
+            setLoadingRecommendations(true);
+            try {
+                const response = await fetchCartRecommendations(session.sessionToken, cartItemIds);
+                if (!cancelled) {
+                    const payload = response?.data?.data || {};
+                    setRecommendations(payload.recommendations || []);
+                    setRecommendationError('');
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setRecommendations([]);
+                    const message =
+                        error?.response?.data?.message || error?.message || 'Unable to load recommendations.';
+                    setRecommendationError(message);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingRecommendations(false);
+                }
+            }
+        };
+
+        loadRecommendations();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [cartSignature, session?.sessionToken, cartItems.length, cartItemIds]);
 
     const cardErrors = useMemo(() => {
         if (!requiresOnlinePayment) {
@@ -301,6 +354,14 @@ const CheckoutPage = () => {
         }
     };
 
+    const handleAddRecommendation = (menuItem) => {
+        if (!menuItem) {
+            return;
+        }
+        addItem(menuItem);
+        toast.success(`${menuItem.name} added to cart`, { toastId: `rec-${menuItem.id}` });
+    };
+
     const handleBackToMenu = () => navigate('/');
 
     const paymentFormDisabled = placingOrder || processingPayment || Boolean(paymentIntent);
@@ -437,6 +498,79 @@ const CheckoutPage = () => {
                                 <span>{formatPrice(finalTotalCents)}</span>
                             </div>
                         </div>
+
+                        {session?.sessionToken && cartItems.length > 0 && (
+                            <div className="checkout-recommendations mt-4">
+                                <div className="checkout-recommendations__header">
+                                    <h2 className="h5 mb-0">Recommended for you</h2>
+                                    {loadingRecommendations && (
+                                        <Spinner animation="border" size="sm" variant="secondary" className="ms-2" />
+                                    )}
+                                </div>
+                                {recommendationError ? (
+                                    <div className="alert alert-warning py-2 px-3 mt-3 mb-0">
+                                        {recommendationError}
+                                    </div>
+                                ) : recommendations.length === 0 ? (
+                                    <p className="text-muted small mt-3 mb-0">
+                                        We&apos;re learning from guests&apos; favorite combos to surface great pairings.
+                                    </p>
+                                ) : (
+                                    <div className="checkout-recommendations__list mt-3">
+                                        {recommendations.map((recommendation) => {
+                                            const item = recommendation.menuItem;
+                                            if (!item) {
+                                                return null;
+                                            }
+                                            const attachPercent = Math.round((recommendation.attachRate || 0) * 100);
+                                            const imageUrl = resolveAssetUrl(item.imageUrl) || FALLBACK_IMAGE;
+                                            return (
+                                                <article className="checkout-recommendations__card" key={item.id}>
+                                                    <div className="checkout-recommendations__media">
+                                                        <img
+                                                            src={imageUrl}
+                                                            alt={item.name}
+                                                            onError={(event) => {
+                                                                event.currentTarget.src = FALLBACK_IMAGE;
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="checkout-recommendations__content">
+                                                        <h3 className="checkout-recommendations__name">{item.name}</h3>
+                                                        {item.description && (
+                                                            <p className="checkout-recommendations__description">
+                                                                {item.description.length > 80
+                                                                    ? `${item.description.slice(0, 77)}…`
+                                                                    : item.description}
+                                                            </p>
+                                                        )}
+                                                        <div className="checkout-recommendations__footer">
+                                                            <div>
+                                                                <span className="checkout-recommendations__price">
+                                                                    {formatPrice(item.priceCents)}
+                                                                </span>
+                                                                {attachPercent > 0 && (
+                                                                    <span className="checkout-recommendations__meta">
+                                                                        {attachPercent}% of guests added this
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <Button
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                onClick={() => handleAddRecommendation(item)}
+                                                            >
+                                                                Add
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </article>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="checkout-payment mt-4">
                             <h2 className="h5 mb-3">Payment</h2>

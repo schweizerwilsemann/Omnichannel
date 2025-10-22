@@ -17,6 +17,14 @@ export const fetchCustomerVouchers = (sessionToken) =>
     api.get('/customer/vouchers', { params: { sessionToken } });
 export const claimCustomerVoucher = (payload) => api.post('/customer/vouchers/claim', payload);
 export const claimVoucherByToken = (payload) => api.post('/customer/vouchers/email-claim', payload);
+export const fetchCartRecommendations = (sessionToken, items = [], limit = 5) =>
+    api.get('/customer/recommendations', {
+        params: {
+            sessionToken,
+            items: Array.isArray(items) && items.length > 0 ? items.join(',') : undefined,
+            limit
+        }
+    });
 
 export const openOrdersStream = (sessionToken) => {
     if (!sessionToken) {
