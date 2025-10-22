@@ -18,7 +18,28 @@ const ensurePortalRoot = () => {
     return node;
 };
 
-const formatAnswer = (text) => text?.trim() || 'No answer available.';
+const ISO_TIMESTAMP_REGEX =
+    /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:?\d{2})?\b/g;
+
+const formatIsoTimestamps = (text) =>
+    text.replace(ISO_TIMESTAMP_REGEX, (match) => {
+        const date = new Date(match);
+        if (Number.isNaN(date.getTime())) {
+            return match;
+        }
+        return date.toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        });
+    });
+
+const formatAnswer = (text) => {
+    const trimmed = text?.trim();
+    if (!trimmed) {
+        return 'No answer available.';
+    }
+    return formatIsoTimestamps(trimmed);
+};
 
 const makeId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
