@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
@@ -11,6 +12,7 @@ import { safeLoadOrderForEvent } from './order.service.js';
 import { notifyOrderCreated } from './realtime.service.js';
 import { normalizeAssetUrl } from './storage.service.js';
 import { verifyPromotionClaimToken } from '../utils/promotionTokens.js';
+import { consumePaymentIntent, getPaymentProviderLabel } from './payment/paymentStore.js';
 import {
     MEMBERSHIP_STATUS,
     ORDER_STATUS,
@@ -20,7 +22,9 @@ import {
     PROMOTION_STATUS,
     VOUCHER_STATUS,
     CUSTOMER_VOUCHER_STATUS,
-    DISCOUNT_TYPES
+    DISCOUNT_TYPES,
+    PAYMENT_STATUS,
+    PAYMENT_METHOD
 } from '../utils/common.js';
 
 const {     
@@ -1442,15 +1446,48 @@ const mapMenuItems = (menuItems) => {
     return itemMap;
 };
 
-export const placeOrderForSession = async (sessionToken, payload) => {
-    const session = await resolveSession(sessionToken);
-    const items = payload.items || [];
+const normalizeOrderItems = (items = []) =>
+    items.map((item) => ({
+        menuItemId: item.menuItemId,
+        quantity: Math.max(Number.isFinite(Number(item.quantity)) ? Number(item.quantity) || 0 : parseInt(item.quantity, 10) || 0, 1),
+        notes: item.notes ? String(item.notes) : null
+    }));
 
-    if (!Array.isArray(items) || items.length === 0) {
+const buildOrderFingerprint = ({
+    session,
+    items,
+    applyLoyaltyDiscount,
+    loyaltyPointsRequested,
+    requestedCustomerVoucherId,
+    voucherCode
+}) => {
+    const payload = {
+        restaurantId: session.restaurantId,
+        guestSessionId: session.id,
+        applyLoyaltyDiscount: Boolean(applyLoyaltyDiscount),
+        loyaltyPointsRequested: Number(loyaltyPointsRequested) || 0,
+        customerVoucherId: requestedCustomerVoucherId || null,
+        voucherCode: voucherCode || null,
+        items: items.map((item) => ({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            notes: item.notes || null
+        }))
+    };
+
+    const serialized = JSON.stringify(payload);
+    return crypto.createHash('sha256').update(serialized).digest('hex');
+};
+
+const buildOrderDraft = async ({ session, payload, transaction }) => {
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+
+    if (!rawItems.length) {
         throw new Error('Order must contain at least one item');
     }
 
-    const menuItemIds = items.map((item) => item.menuItemId);
+    const normalizedItems = normalizeOrderItems(rawItems);
+    const menuItemIds = normalizedItems.map((item) => item.menuItemId);
     const uniqueMenuItemIds = Array.from(new Set(menuItemIds));
     const applyLoyaltyDiscount = Boolean(payload.applyLoyaltyDiscount);
     const requestedPointsRaw = payload.loyaltyPointsToRedeem;
@@ -1471,197 +1508,349 @@ export const placeOrderForSession = async (sessionToken, payload) => {
         throw new Error('You must have a loyalty membership to apply vouchers');
     }
 
-    return sequelize.transaction(async (transaction) => {
-        const menuItems = await MenuItem.findAll({
+    const menuItems = await MenuItem.findAll({
+        where: {
+            id: uniqueMenuItemIds,
+            isAvailable: true
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE
+    });
+
+    if (menuItems.length !== uniqueMenuItemIds.length) {
+        throw new Error('One or more menu items are unavailable');
+    }
+
+    const menuItemMap = mapMenuItems(menuItems);
+    const subtotalCents = computeOrderTotals(normalizedItems, menuItemMap);
+
+    if (subtotalCents <= 0) {
+        throw new Error('Order total must be greater than zero');
+    }
+
+    const now = new Date();
+
+    let membershipRecord = null;
+    if (session.customerId) {
+        membershipRecord = await RestaurantCustomer.findOne({
             where: {
-                id: uniqueMenuItemIds,
-                isAvailable: true
+                restaurantId: session.restaurantId,
+                customerId: session.customerId
             },
             transaction,
             lock: transaction.LOCK.UPDATE
         });
+    }
 
-        if (menuItems.length !== uniqueMenuItemIds.length) {
-            throw new Error('One or more menu items are unavailable');
-        }
+    if (!membershipRecord && (applyLoyaltyDiscount || loyaltyPointsRequested > 0)) {
+        throw new Error('Loyalty discounts require an active membership');
+    }
 
-        const menuItemMap = mapMenuItems(menuItems);
-        const subtotalCents = computeOrderTotals(items, menuItemMap);
-
-        if (subtotalCents <= 0) {
-            throw new Error('Order total must be greater than zero');
-        }
-
-        const now = new Date();
-
-        let membershipRecord = null;
-        if (session.customerId) {
-            membershipRecord = await RestaurantCustomer.findOne({
-                where: {
-                    restaurantId: session.restaurantId,
-                    customerId: session.customerId
+    let customerVoucherRecord = null;
+    if (requestedCustomerVoucherId) {
+        customerVoucherRecord = await CustomerVoucher.findOne({
+            where: {
+                id: requestedCustomerVoucherId,
+                restaurantId: session.restaurantId
+            },
+            include: [
+                {
+                    model: Voucher,
+                    as: 'voucher',
+                    include: [{ model: VoucherTier, as: 'tiers', required: false }]
                 },
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
-        }
+                { model: Promotion, as: 'promotion', required: false }
+            ],
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
 
-        if (!membershipRecord && (applyLoyaltyDiscount || loyaltyPointsRequested > 0)) {
-            throw new Error('Loyalty discounts require an active membership');
+        if (!customerVoucherRecord || customerVoucherRecord.customerId !== session.customerId) {
+            throw new Error('Voucher is not available for this session');
         }
-
-        let customerVoucherRecord = null;
-        if (requestedCustomerVoucherId) {
-            customerVoucherRecord = await CustomerVoucher.findOne({
-                where: {
-                    id: requestedCustomerVoucherId,
-                    restaurantId: session.restaurantId
+    } else if (voucherCode) {
+        customerVoucherRecord = await CustomerVoucher.findOne({
+            where: {
+                code: voucherCode,
+                customerId: session.customerId,
+                restaurantId: session.restaurantId
+            },
+            include: [
+                {
+                    model: Voucher,
+                    as: 'voucher',
+                    include: [{ model: VoucherTier, as: 'tiers', required: false }]
                 },
-                include: [
-                    {
-                        model: Voucher,
-                        as: 'voucher',
-                        include: [{ model: VoucherTier, as: 'tiers', required: false }]
-                    },
-                    { model: Promotion, as: 'promotion', required: false }
-                ],
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
+                { model: Promotion, as: 'promotion', required: false }
+            ],
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
 
-            if (!customerVoucherRecord || customerVoucherRecord.customerId !== session.customerId) {
-                throw new Error('Voucher is not available for this session');
-            }
-        } else if (voucherCode) {
-            customerVoucherRecord = await CustomerVoucher.findOne({
-                where: {
-                    code: voucherCode,
-                    customerId: session.customerId,
-                    restaurantId: session.restaurantId
-                },
-                include: [
-                    {
-                        model: Voucher,
-                        as: 'voucher',
-                        include: [{ model: VoucherTier, as: 'tiers', required: false }]
-                    },
-                    { model: Promotion, as: 'promotion', required: false }
-                ],
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
+        if (!customerVoucherRecord) {
+            throw new Error('Voucher code could not be found for this membership');
+        }
+    }
 
-            if (!customerVoucherRecord) {
-                throw new Error('Voucher code could not be found for this membership');
-            }
+    let voucherDiscountCents = 0;
+    let appliedVoucherTier = null;
+    let appliedPromotionId = null;
+
+    if (customerVoucherRecord) {
+        if (customerVoucherRecord.status !== CUSTOMER_VOUCHER_STATUS.AVAILABLE) {
+            throw new Error('Voucher has already been used or is no longer available');
         }
 
-        let voucherDiscountCents = 0;
-        let appliedVoucherTier = null;
-        let appliedPromotionId = null;
-
-        if (customerVoucherRecord) {
-            if (customerVoucherRecord.status !== CUSTOMER_VOUCHER_STATUS.AVAILABLE) {
-                throw new Error('Voucher has already been used or is no longer available');
-            }
-
-            const voucherExpiresAt = normalizeDate(customerVoucherRecord.expiresAt);
-            if (voucherExpiresAt && voucherExpiresAt < now) {
-                await customerVoucherRecord.update({ status: CUSTOMER_VOUCHER_STATUS.EXPIRED }, { transaction });
-                throw new Error('Voucher has expired');
-            }
-
-            const voucherPlain = customerVoucherRecord.voucher ? toPlain(customerVoucherRecord.voucher) : null;
-            if (!voucherPlain) {
-                throw new Error('Voucher details are unavailable');
-            }
-
-            if (voucherPlain.status !== VOUCHER_STATUS.ACTIVE) {
-                throw new Error('Voucher is not active');
-            }
-
-            if (!isWithinSchedule(voucherPlain.validFrom, voucherPlain.validUntil, now)) {
-                throw new Error('Voucher cannot be applied at this time');
-            }
-
-            const discountResult = computeVoucherDiscountForSubtotal(voucherPlain, subtotalCents);
-            if (!discountResult.tier || discountResult.discountCents <= 0) {
-                throw new Error('Order total does not meet the voucher requirements');
-            }
-
-            if (!voucherPlain.allowStackWithPoints && (applyLoyaltyDiscount || loyaltyPointsRequested > 0)) {
-                throw new Error('This voucher cannot be combined with loyalty discounts');
-            }
-
-            voucherDiscountCents = discountResult.discountCents;
-            appliedVoucherTier = discountResult.tier;
-            appliedPromotionId = customerVoucherRecord.promotionId || voucherPlain.promotionId || null;
+        const voucherExpiresAt = normalizeDate(customerVoucherRecord.expiresAt);
+        if (voucherExpiresAt && voucherExpiresAt < now) {
+            await customerVoucherRecord.update({ status: CUSTOMER_VOUCHER_STATUS.EXPIRED }, { transaction });
+            throw new Error('Voucher has expired');
         }
 
-        const legalDiscountCap = computeLegalDiscountCap(subtotalCents);
-        voucherDiscountCents = Math.min(voucherDiscountCents, legalDiscountCap);
-        let remainingDiscountCap = Math.max(legalDiscountCap - voucherDiscountCents, 0);
+        const voucherPlain = customerVoucherRecord.voucher ? toPlain(customerVoucherRecord.voucher) : null;
+        if (!voucherPlain) {
+            throw new Error('Voucher details are unavailable');
+        }
 
-        let loyaltyDiscountFromBalance = 0;
-        let loyaltyDiscountFromPoints = 0;
-        let loyaltyPointsRedeemed = 0;
+        if (voucherPlain.status !== VOUCHER_STATUS.ACTIVE) {
+            throw new Error('Voucher is not active');
+        }
 
-        if (membershipRecord) {
-            if (applyLoyaltyDiscount && remainingDiscountCap > 0 && membershipRecord.discountBalanceCents > 0) {
-                loyaltyDiscountFromBalance = Math.min(membershipRecord.discountBalanceCents, remainingDiscountCap);
-                remainingDiscountCap -= loyaltyDiscountFromBalance;
+        if (!isWithinSchedule(voucherPlain.validFrom, voucherPlain.validUntil, now)) {
+            throw new Error('Voucher cannot be applied at this time');
+        }
+
+        const discountResult = computeVoucherDiscountForSubtotal(voucherPlain, subtotalCents);
+        if (!discountResult.tier || discountResult.discountCents <= 0) {
+            throw new Error('Order total does not meet the voucher requirements');
+        }
+
+        if (!voucherPlain.allowStackWithPoints && (applyLoyaltyDiscount || loyaltyPointsRequested > 0)) {
+            throw new Error('This voucher cannot be combined with loyalty discounts');
+        }
+
+        voucherDiscountCents = discountResult.discountCents;
+        appliedVoucherTier = discountResult.tier;
+        appliedPromotionId = customerVoucherRecord.promotionId || voucherPlain.promotionId || null;
+    }
+
+    const legalDiscountCap = computeLegalDiscountCap(subtotalCents);
+    voucherDiscountCents = Math.min(voucherDiscountCents, legalDiscountCap);
+    let remainingDiscountCap = Math.max(legalDiscountCap - voucherDiscountCents, 0);
+
+    let loyaltyDiscountFromBalance = 0;
+    let loyaltyDiscountFromPoints = 0;
+    let loyaltyPointsRedeemed = 0;
+
+    if (membershipRecord) {
+        if (applyLoyaltyDiscount && remainingDiscountCap > 0 && membershipRecord.discountBalanceCents > 0) {
+            loyaltyDiscountFromBalance = Math.min(membershipRecord.discountBalanceCents, remainingDiscountCap);
+            remainingDiscountCap -= loyaltyDiscountFromBalance;
+        }
+
+        if (loyaltyPointsRequested > 0) {
+            if (loyaltyPointsRequested > membershipRecord.loyaltyPoints) {
+                throw new Error('You do not have enough loyalty points to redeem that amount');
             }
 
-            if (loyaltyPointsRequested > 0) {
-                if (loyaltyPointsRequested > membershipRecord.loyaltyPoints) {
-                    throw new Error('You do not have enough loyalty points to redeem that amount');
+            const maxPointsByCap = Math.floor(remainingDiscountCap / LOYALTY_POINT_VALUE_CENTS);
+            if (maxPointsByCap <= 0) {
+                throw new Error('Requested loyalty points exceed the legal discount cap (50% of the order total)');
+            }
+
+            loyaltyPointsRedeemed = Math.min(loyaltyPointsRequested, maxPointsByCap);
+            loyaltyDiscountFromPoints = loyaltyPointsRedeemed * LOYALTY_POINT_VALUE_CENTS;
+            remainingDiscountCap -= loyaltyDiscountFromPoints;
+        }
+    }
+
+    const loyaltyDiscountCents = loyaltyDiscountFromBalance + loyaltyDiscountFromPoints;
+    const discountAppliedCents = voucherDiscountCents + loyaltyDiscountCents;
+    const payableCents = Math.max(subtotalCents - discountAppliedCents, 0);
+    const earnedLoyaltyPoints = membershipRecord ? Math.floor(payableCents / 100) : 0;
+
+    const orderItemsPayload = normalizedItems.map((item) => {
+        const menuItem = menuItemMap.get(item.menuItemId);
+        return {
+            menuItemId: menuItem.id,
+            quantity: item.quantity || 1,
+            priceCentsSnapshot: menuItem.priceCents,
+            notes: item.notes || null
+        };
+    });
+
+    const orderFingerprint = buildOrderFingerprint({
+        session,
+        items: normalizedItems,
+        applyLoyaltyDiscount,
+        loyaltyPointsRequested,
+        requestedCustomerVoucherId,
+        voucherCode
+    });
+
+    return {
+        session,
+        normalizedItems,
+        menuItemMap,
+        subtotalCents,
+        voucherDiscountCents,
+        appliedVoucherTier,
+        appliedPromotionId,
+        loyaltyDiscountFromBalance,
+        loyaltyDiscountFromPoints,
+        loyaltyDiscountCents,
+        loyaltyPointsRedeemed,
+        payableCents,
+        discountAppliedCents,
+        earnedLoyaltyPoints,
+        membershipRecord,
+        customerVoucherRecord,
+        applyLoyaltyDiscount,
+        loyaltyPointsRequested,
+        requestedCustomerVoucherId,
+        voucherCode,
+        orderItemsPayload,
+        legalDiscountCap,
+        orderFingerprint
+    };
+};
+
+export const quoteOrderForSession = async (sessionToken, payload) => {
+    const session = await resolveSession(sessionToken);
+
+    return sequelize.transaction(async (transaction) => {
+        const draft = await buildOrderDraft({ session, payload, transaction });
+
+        const membershipSummary = draft.membershipRecord
+            ? {
+                  loyaltyPoints: draft.membershipRecord.loyaltyPoints,
+                  discountBalanceCents: draft.membershipRecord.discountBalanceCents
+              }
+            : null;
+
+        return {
+            subtotalCents: draft.subtotalCents,
+            discountAppliedCents: draft.discountAppliedCents,
+            voucherDiscountCents: draft.voucherDiscountCents,
+            loyaltyDiscountCents: draft.loyaltyDiscountCents,
+            loyaltyPointsRedeemed: draft.loyaltyPointsRedeemed,
+            payableCents: draft.payableCents,
+            currency: 'usd',
+            loyaltyPointsEarned: draft.earnedLoyaltyPoints,
+            voucher: draft.customerVoucherRecord
+                ? {
+                      id: draft.customerVoucherRecord.id,
+                      code: draft.customerVoucherRecord.code || null
+                  }
+                : null,
+            membership: membershipSummary,
+            items: draft.normalizedItems,
+            orderFingerprint: draft.orderFingerprint
+        };
+    });
+};
+
+export const placeOrderForSession = async (sessionToken, payload) => {
+    const session = await resolveSession(sessionToken);
+
+    return sequelize.transaction(async (transaction) => {
+        const draft = await buildOrderDraft({ session, payload, transaction });
+        const payInCash = Boolean(payload.payInCash);
+
+        if (payInCash && payload.paymentIntentId) {
+            throw new Error('Cash payments should not include an online payment intent.');
+        }
+
+        let paymentRecord = null;
+
+        if (draft.payableCents > 0) {
+            if (payInCash) {
+                paymentRecord = {
+                    id: null,
+                    provider: 'CASH',
+                    status: PAYMENT_STATUS.PENDING,
+                    method: PAYMENT_METHOD.CASH,
+                    cardBrand: null,
+                    cardLast4: null,
+                    updatedAt: new Date()
+                };
+            } else {
+                const paymentIntentId = payload.paymentIntentId || null;
+                if (!paymentIntentId) {
+                    throw new Error('Payment confirmation is required before placing this order.');
                 }
 
-                const maxPointsByCap = Math.floor(remainingDiscountCap / LOYALTY_POINT_VALUE_CENTS);
-                if (maxPointsByCap <= 0) {
-                    throw new Error('Requested loyalty points exceed the legal discount cap (50% of the order total)');
-                }
-
-                loyaltyPointsRedeemed = Math.min(loyaltyPointsRequested, maxPointsByCap);
-                loyaltyDiscountFromPoints = loyaltyPointsRedeemed * LOYALTY_POINT_VALUE_CENTS;
-                remainingDiscountCap -= loyaltyDiscountFromPoints;
+                paymentRecord = consumePaymentIntent({
+                    paymentIntentId,
+                    sessionToken,
+                    expectedAmountCents: draft.payableCents,
+                    expectedFingerprint: draft.orderFingerprint
+                });
             }
+        } else {
+            paymentRecord = {
+                id: null,
+                provider: 'NO_CHARGE',
+                status: PAYMENT_STATUS.SUCCEEDED,
+                method: PAYMENT_METHOD.NONE,
+                cardBrand: null,
+                cardLast4: null,
+                updatedAt: new Date()
+            };
         }
 
-        const loyaltyDiscountCents = loyaltyDiscountFromBalance + loyaltyDiscountFromPoints;
-        const discountAppliedCents = voucherDiscountCents + loyaltyDiscountCents;
-        const payableCents = Math.max(subtotalCents - discountAppliedCents, 0);
-        const earnedLoyaltyPoints = membershipRecord ? Math.floor(payableCents / 100) : 0;
+        if (!paymentRecord.method) {
+            paymentRecord.method = payInCash ? PAYMENT_METHOD.CASH : PAYMENT_METHOD.CARD;
+        }
+
+        let paymentConfirmedAt = null;
+        if (paymentRecord.method === PAYMENT_METHOD.CARD && paymentRecord.status === PAYMENT_STATUS.SUCCEEDED) {
+            paymentConfirmedAt = paymentRecord.updatedAt ? new Date(paymentRecord.updatedAt) : new Date();
+        } else if (paymentRecord.method === PAYMENT_METHOD.NONE && paymentRecord.status === PAYMENT_STATUS.SUCCEEDED) {
+            paymentConfirmedAt = paymentRecord.updatedAt ? new Date(paymentRecord.updatedAt) : new Date();
+        }
+
+        const paymentProvider = paymentRecord.provider || getPaymentProviderLabel();
+        const paymentMetadata =
+            paymentRecord.method === PAYMENT_METHOD.CARD && paymentRecord.cardLast4 && paymentRecord.cardBrand
+                ? {
+                      cardBrand: paymentRecord.cardBrand,
+                      cardLast4: paymentRecord.cardLast4
+                  }
+                : paymentRecord.method === PAYMENT_METHOD.CASH
+                    ? { instructions: 'Pay at counter' }
+                    : null;
 
         const order = await Order.create(
             {
                 restaurantId: session.restaurantId,
                 guestSessionId: session.id,
                 customerId: session.customerId,
-                customerVoucherId: customerVoucherRecord ? customerVoucherRecord.id : null,
-                promotionId: appliedPromotionId,
+                customerVoucherId: draft.customerVoucherRecord ? draft.customerVoucherRecord.id : null,
+                promotionId: draft.appliedPromotionId,
                 status: ORDER_STATUS.PLACED,
-                totalCents: payableCents,
-                discountAppliedCents,
-                voucherDiscountCents,
-                loyaltyDiscountCents,
-                loyaltyPointsRedeemed,
-                earnedLoyaltyPoints,
-                specialRequest: payload.specialRequest || null
+                totalCents: draft.payableCents,
+                discountAppliedCents: draft.discountAppliedCents,
+                voucherDiscountCents: draft.voucherDiscountCents,
+                loyaltyDiscountCents: draft.loyaltyDiscountCents,
+                loyaltyPointsRedeemed: draft.loyaltyPointsRedeemed,
+                earnedLoyaltyPoints: draft.earnedLoyaltyPoints,
+                specialRequest: payload.specialRequest || null,
+                paymentMethod: paymentRecord.method,
+                paymentStatus: paymentRecord.status,
+                paymentProvider,
+                paymentIntentId: paymentRecord.id,
+                paymentReference: paymentRecord.id || null,
+                paymentMetadata,
+                paymentConfirmedAt
             },
             { transaction }
         );
 
-        const orderItemsPayload = items.map((item) => {
-            const menuItem = menuItemMap.get(item.menuItemId);
-            return {
-                orderId: order.id,
-                menuItemId: menuItem.id,
-                quantity: item.quantity || 1,
-                priceCentsSnapshot: menuItem.priceCents,
-                notes: item.notes || null
-            };
-        });
+        const orderItemsPayload = draft.orderItemsPayload.map((item) => ({
+            ...item,
+            orderId: order.id
+        }));
 
         await OrderItem.bulkCreate(orderItemsPayload, { transaction });
 
@@ -1690,11 +1879,14 @@ export const placeOrderForSession = async (sessionToken, payload) => {
         );
 
         let membershipSummary = null;
-        if (membershipRecord) {
-            const nextDiscountBalance = Math.max(membershipRecord.discountBalanceCents - loyaltyDiscountFromBalance, 0);
-            const nextLoyaltyPoints = Math.max(membershipRecord.loyaltyPoints - loyaltyPointsRedeemed + earnedLoyaltyPoints, 0);
+        if (draft.membershipRecord) {
+            const nextDiscountBalance = Math.max(draft.membershipRecord.discountBalanceCents - draft.loyaltyDiscountFromBalance, 0);
+            const nextLoyaltyPoints = Math.max(
+                draft.membershipRecord.loyaltyPoints - draft.loyaltyPointsRedeemed + draft.earnedLoyaltyPoints,
+                0
+            );
 
-            await membershipRecord.update(
+            await draft.membershipRecord.update(
                 {
                     loyaltyPoints: nextLoyaltyPoints,
                     discountBalanceCents: nextDiscountBalance,
@@ -1709,16 +1901,16 @@ export const placeOrderForSession = async (sessionToken, payload) => {
             };
         }
 
-        if (customerVoucherRecord) {
-            await customerVoucherRecord.update(
+        if (draft.customerVoucherRecord) {
+            await draft.customerVoucherRecord.update(
                 {
                     status: CUSTOMER_VOUCHER_STATUS.REDEEMED,
                     redeemedAt: new Date(),
                     metadata: {
-                        ...(customerVoucherRecord.metadata || {}),
+                        ...(draft.customerVoucherRecord.metadata || {}),
                         orderId: order.id,
-                        discountCents: voucherDiscountCents,
-                        appliedTierId: appliedVoucherTier?.id || null
+                        discountCents: draft.voucherDiscountCents,
+                        appliedTierId: draft.appliedVoucherTier?.id || null
                     }
                 },
                 { transaction }
@@ -1741,17 +1933,28 @@ export const placeOrderForSession = async (sessionToken, payload) => {
         return {
             orderId: order.id,
             status: order.status,
-            subtotalCents,
-            discountAppliedCents,
-            voucherDiscountCents,
-            loyaltyDiscountCents,
-            loyaltyPointsRedeemed,
-            customerVoucherId: customerVoucherRecord ? customerVoucherRecord.id : null,
-            promotionId: appliedPromotionId,
+            subtotalCents: draft.subtotalCents,
+            discountAppliedCents: draft.discountAppliedCents,
+            voucherDiscountCents: draft.voucherDiscountCents,
+            loyaltyDiscountCents: draft.loyaltyDiscountCents,
+            loyaltyPointsRedeemed: draft.loyaltyPointsRedeemed,
+            customerVoucherId: draft.customerVoucherRecord ? draft.customerVoucherRecord.id : null,
+            promotionId: draft.appliedPromotionId,
             totalCents: order.totalCents,
             total: order.totalCents / 100,
-            earnedLoyaltyPoints,
+            earnedLoyaltyPoints: draft.earnedLoyaltyPoints,
             membership: membershipSummary,
+            payment: {
+                status: order.paymentStatus,
+                method: order.paymentMethod,
+                provider: order.paymentProvider,
+                intentId: order.paymentIntentId,
+                reference: order.paymentReference,
+                cardLast4: paymentRecord.cardLast4 || null,
+                cardBrand: paymentRecord.cardBrand || null,
+                confirmedAt: paymentConfirmedAt,
+                instructions: paymentRecord.method === PAYMENT_METHOD.CASH ? 'Settle at counter' : null
+            },
             items: orderItemsPayload.map((item) => ({
                 menuItemId: item.menuItemId,
                 quantity: item.quantity,
@@ -1867,6 +2070,21 @@ export const listOrdersForSession = async (sessionToken) => {
             placedAt: order.placedAt,
             canRate: order.status === ORDER_STATUS.COMPLETED && unratedItems.length > 0,
             items,
+            payment: {
+                status: order.paymentStatus || null,
+                method: order.paymentMethod || null,
+                provider: order.paymentProvider || null,
+                intentId: order.paymentIntentId || null,
+                reference: order.paymentReference || null,
+                confirmedAt: order.paymentConfirmedAt || null,
+                card: order.paymentMetadata?.cardLast4
+                    ? {
+                          brand: order.paymentMetadata.cardBrand || null,
+                          last4: order.paymentMetadata.cardLast4
+                      }
+                    : null,
+                instructions: order.paymentMetadata?.instructions || null
+            },
             ticket: latestTicket
                 ? {
                       id: latestTicket.id,
@@ -2296,4 +2514,3 @@ export const closeSessionByToken = async (sessionToken) => {
 
     return { message: 'Session closed' };
 };
-

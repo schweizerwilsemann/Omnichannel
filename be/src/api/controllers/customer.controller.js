@@ -25,6 +25,7 @@ import {
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
 import { registerCustomerOrderStream } from '../services/realtime.service.js';
+import { processOrderPayment, getPaymentIntentSummary } from '../services/payment.service.js';
 
 const extractSessionToken = (req) => req.body.sessionToken || req.query.sessionToken || req.headers['x-session-token'];
 
@@ -77,6 +78,36 @@ export const placeOrderController = async (req, res) => {
     } catch (error) {
         logger.error('Failed to place customer order', { message: error.message });
         return errorResponse(res, error.message, 400);
+    }
+};
+
+export const processPaymentController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const result = await processOrderPayment(sessionToken, req.body);
+        if (!result || result.status !== 'SUCCEEDED') {
+            const message = result?.failureMessage || 'Payment could not be authorised';
+            return errorResponse(res, message, 400, result);
+        }
+        return successResponse(res, result, 201);
+    } catch (error) {
+        logger.error('Failed to process payment', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to process payment', 400);
+    }
+};
+
+export const getPaymentIntentController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const paymentIntentId = req.params.paymentIntentId;
+        const summary = getPaymentIntentSummary(sessionToken, paymentIntentId);
+        if (!summary) {
+            return errorResponse(res, 'Payment intent not found', 404);
+        }
+        return successResponse(res, summary, 200);
+    } catch (error) {
+        logger.error('Failed to fetch payment intent', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to fetch payment intent details', 400);
     }
 };
 

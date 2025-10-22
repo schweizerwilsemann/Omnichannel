@@ -21,7 +21,9 @@ import {
     listPromotionsController,
     listCustomerVouchersController,
     claimVoucherController,
-    claimVoucherByTokenController
+    claimVoucherByTokenController,
+    processPaymentController,
+    getPaymentIntentController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -30,6 +32,7 @@ import {
     sessionTokenQuerySchema,
     sessionTokenBodySchema,
     placeOrderSchema,
+    processPaymentSchema,
     membershipRegistrationSchema,
     membershipVerifySchema,
     membershipStatusQuerySchema,
@@ -37,7 +40,8 @@ import {
     authenticatorVerifySchema,
     pinUpdateSchema,
     voucherClaimSchema,
-    voucherEmailClaimSchema
+    voucherEmailClaimSchema,
+    paymentIntentParamSchema
 } from '../validations/customer.validation.js';
 
 const router = Router();
@@ -60,6 +64,13 @@ router.get('/promotions', validationMiddleware(sessionTokenQuerySchema, 'query')
 router.get('/vouchers', validationMiddleware(sessionTokenQuerySchema, 'query'), listCustomerVouchersController);
 router.post('/vouchers/claim', validationMiddleware(voucherClaimSchema), claimVoucherController);
 router.post('/vouchers/email-claim', validationMiddleware(voucherEmailClaimSchema), claimVoucherByTokenController);
+router.post('/payments/charge', validationMiddleware(processPaymentSchema), processPaymentController);
+router.get(
+    '/payments/:paymentIntentId',
+    validationMiddleware(paymentIntentParamSchema, 'params'),
+    validationMiddleware(sessionTokenQuerySchema, 'query'),
+    getPaymentIntentController
+);
 router.post('/orders', validationMiddleware(placeOrderSchema), placeOrderController);
 router.get('/orders/stream', validationMiddleware(sessionTokenQuerySchema, 'query'), streamCustomerOrdersController);
 router.get('/orders', validationMiddleware(sessionTokenQuerySchema, 'query'), listOrdersController);
