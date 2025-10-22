@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Alert, Badge, Button, Card, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import MainLayout from '../components/layout/MainLayout.jsx';
-import { fetchOrders, updateOrderStatus } from '../services/order.service.js';
+import { fetchOrders, updateOrderStatus, updateOrderPaymentStatus } from '../services/order.service.js';
 import { closeGuestSession } from '../services/session.service.js';
 import { createOrderStream } from '../services/orderEvents.service.js';
 
@@ -14,6 +14,12 @@ const statusVariantMap = {
     READY: 'success',
     COMPLETED: 'dark',
     CANCELLED: 'danger'
+};
+
+const paymentStatusVariantMap = {
+    SUCCEEDED: 'success',
+    PENDING: 'warning',
+    FAILED: 'danger'
 };
 
 const actionableStatuses = {
@@ -72,6 +78,7 @@ const OrdersPage = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [updating, setUpdating] = useState({});
+    const [paymentUpdating, setPaymentUpdating] = useState({});
     const [readyModalOrder, setReadyModalOrder] = useState(null);
     const accessToken = useSelector((state) => state.auth.accessToken);
     const restaurantIds = useSelector((state) => state.auth.user?.restaurantIds || []);
@@ -189,6 +196,27 @@ const OrdersPage = () => {
         [mergeIncomingOrder]
     );
 
+    const handlePaymentStatusChange = useCallback(
+        async (orderId, nextStatus) => {
+            setPaymentUpdating((prev) => ({ ...prev, [orderId]: nextStatus }));
+            try {
+                const { data } = await updateOrderPaymentStatus(orderId, { status: nextStatus });
+                const updated = data?.data || { id: orderId };
+                mergeIncomingOrder(updated);
+                toast.success(nextStatus === 'SUCCEEDED' ? 'Payment marked as received' : 'Payment marked as pending');
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Unable to update payment status');
+            } finally {
+                setPaymentUpdating((prev) => {
+                    const next = { ...prev };
+                    delete next[orderId];
+                    return next;
+                });
+            }
+        },
+        [mergeIncomingOrder]
+    );
+
     const rows = useMemo(() => orders, [orders]);
 
     return (
@@ -213,6 +241,11 @@ const OrdersPage = () => {
                     {rows.map((order) => {
                         const actions = actionableStatuses[order.status] || [];
                         const isUpdating = Boolean(updating[order.id]);
+                        const payment = order.payment || {};
+                        const paymentStatus = payment.status || 'PENDING';
+                        const paymentMethod = payment.method || 'CARD';
+                        const isCashOrder = paymentMethod === 'CASH';
+                        const isPaymentUpdating = Boolean(paymentUpdating[order.id]);
                         return (
                             <Card key={order.id} className={`shadow-sm ${order.status === 'READY' ? 'border-success' : ''}`}>
                                 <Card.Body className="d-flex flex-column gap-3">
@@ -244,6 +277,24 @@ const OrdersPage = () => {
                                             <strong>Special request:</strong> {order.specialRequest}
                                         </Alert>
                                     )}
+                                    <div className="d-flex flex-column gap-1">
+                                        <span className="text-muted small">Payment</span>
+                                        <div className="d-flex flex-wrap align-items-center gap-2">
+                                            <Badge bg="secondary">{paymentMethod}</Badge>
+                                            <Badge bg={paymentStatusVariantMap[paymentStatus] || 'secondary'}>{paymentStatus}</Badge>
+                                            {payment.card ? (
+                                                <span className="text-muted small">
+                                                    {payment.card.brand ? payment.card.brand.toUpperCase() : 'CARD'} ••••{payment.card.last4 || '####'}
+                                                </span>
+                                            ) : null}
+                                            {payment.instructions ? (
+                                                <span className="text-muted small">{payment.instructions}</span>
+                                            ) : null}
+                                            {payment.confirmedAt && paymentStatus === 'SUCCEEDED' ? (
+                                                <span className="text-muted small">Paid {new Date(payment.confirmedAt).toLocaleString()}</span>
+                                            ) : null}
+                                        </div>
+                                    </div>
                                     <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                         <div className="fw-semibold">Total {formatCurrency(order.totalCents)}</div>
                                         <div className="d-flex flex-wrap gap-2">
@@ -269,6 +320,25 @@ const OrdersPage = () => {
                                                     End session
                                                 </Button>
                                             )}
+                                            {isCashOrder ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant={paymentStatus === 'SUCCEEDED' ? 'outline-warning' : 'success'}
+                                                    disabled={isPaymentUpdating}
+                                                    onClick={() => handlePaymentStatusChange(order.id, paymentStatus === 'SUCCEEDED' ? 'PENDING' : 'SUCCEEDED')}
+                                                >
+                                                    {isPaymentUpdating ? (
+                                                        <>
+                                                            <Spinner animation="border" size="sm" className="me-2" />
+                                                            Updating...
+                                                        </>
+                                                    ) : paymentStatus === 'SUCCEEDED' ? (
+                                                        'Mark unpaid'
+                                                    ) : (
+                                                        'Mark paid'
+                                                    )}
+                                                </Button>
+                                            ) : null}
                                             {actions.length === 0 ? (
                                                 <Button variant="outline-secondary" size="sm" disabled>
                                                     No actions
