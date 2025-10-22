@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext.jsx';
 import { useSession } from '../context/SessionContext.jsx';
-import { placeCustomerOrder, closeSession } from '../services/session.js';
+import { placeCustomerOrder, closeSession, processCustomerPayment } from '../services/session.js';
 import resolveAssetUrl from '../utils/assets.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
@@ -19,6 +19,16 @@ const CheckoutPage = () => {
     const loyaltyPoints = session?.membership?.loyaltyPoints ?? 0;
     const [useDiscount, setUseDiscount] = useState(discountBalanceCents > 0);
     const [selectedVoucherId, setSelectedVoucherId] = useState('');
+    const [paymentMode, setPaymentMode] = useState('card');
+    const [cardNumber, setCardNumber] = useState('');
+    const [cardName, setCardName] = useState('');
+    const [cardExpMonth, setCardExpMonth] = useState('');
+    const [cardExpYear, setCardExpYear] = useState('');
+    const [cardCvc, setCardCvc] = useState('');
+    const [cardTouched, setCardTouched] = useState({ number: false, expMonth: false, expYear: false, cvc: false });
+    const [processingPayment, setProcessingPayment] = useState(false);
+    const [paymentIntent, setPaymentIntent] = useState(null);
+    const [paymentError, setPaymentError] = useState('');
     const availableCustomerVouchers = useMemo(() => vouchers?.available || [], [vouchers]);
     const selectedVoucher = useMemo(
         () => availableCustomerVouchers.find((voucher) => voucher.id === selectedVoucherId) || null,
@@ -58,9 +68,24 @@ const CheckoutPage = () => {
 
         return { voucher: voucherDiscount, loyalty: loyaltyDiscount };
     }, [cartItems.length, totalCents, selectedVoucher, useDiscount, discountBalanceCents]);
+    const resetCardTouched = () => setCardTouched({ number: false, expMonth: false, expYear: false, cvc: false });
     const voucherDiscountPreview = calculatedDiscounts.voucher;
     const discountToApply = calculatedDiscounts.loyalty;
     const finalTotalCents = Math.max(totalCents - voucherDiscountPreview - discountToApply, 0);
+    const cardDigits = useMemo(() => cardNumber.replace(/\D/g, ''), [cardNumber]);
+    const requiresOnlinePayment = paymentMode === 'card' && finalTotalCents > 0;
+    const payInCash = paymentMode === 'cash' && finalTotalCents > 0;
+    const cartSignature = useMemo(
+        () =>
+            JSON.stringify(
+                cartItems.map((item) => ({
+                    id: item.id,
+                    quantity: item.quantity,
+                    notes: item.notes || null
+                }))
+            ),
+        [cartItems]
+    );
     useEffect(() => {
         if (discountBalanceCents === 0 && useDiscount) {
             setUseDiscount(false);
@@ -79,6 +104,64 @@ const CheckoutPage = () => {
         }
     }, [availableCustomerVouchers, selectedVoucherId]);
 
+    useEffect(() => {
+        setPaymentIntent(null);
+        setPaymentError('');
+        resetCardTouched();
+    }, [cartSignature, useDiscount, selectedVoucherId, finalTotalCents]);
+
+    useEffect(() => {
+        setPaymentError('');
+        if (paymentMode === 'cash') {
+            setPaymentIntent(null);
+            resetCardTouched();
+        }
+    }, [paymentMode]);
+
+    useEffect(() => {
+        if (paymentIntent) {
+            resetCardTouched();
+        }
+    }, [paymentIntent]);
+
+    const cardErrors = useMemo(() => {
+        if (!requiresOnlinePayment) {
+            return {};
+        }
+        const errors = {};
+
+        if (cardDigits.length < 12) {
+            errors.number = 'Enter a valid card number (use 4242 4242 4242 4242 for Stripe tests).';
+        }
+
+        const expMonthInt = Number.parseInt(cardExpMonth, 10);
+        const expYearInt = Number.parseInt(cardExpYear, 10);
+        if (!expMonthInt || expMonthInt < 1 || expMonthInt > 12 || !expYearInt) {
+            errors.expiry = 'Enter a valid expiry date (MM / YYYY).';
+        } else {
+            const now = new Date();
+            const expiry = new Date(expYearInt, expMonthInt - 1, 1);
+            expiry.setMonth(expiry.getMonth() + 1);
+            if (expiry <= now) {
+                errors.expiry = 'Expiry must be in the future.';
+            }
+        }
+
+        if (cardCvc.length < 3 || cardCvc.length > 4) {
+            errors.cvc = 'CVC must be 3 or 4 digits.';
+        }
+
+        return errors;
+    }, [requiresOnlinePayment, cardDigits, cardExpMonth, cardExpYear, cardCvc]);
+
+    const hasCardErrors = useMemo(() => Object.values(cardErrors).some(Boolean), [cardErrors]);
+    const isCardFormComplete = useMemo(() => {
+        if (!requiresOnlinePayment) {
+            return true;
+        }
+        return !hasCardErrors;
+    }, [requiresOnlinePayment, hasCardErrors]);
+
 
 
     const handlePlaceOrder = async () => {
@@ -94,6 +177,11 @@ const CheckoutPage = () => {
             toast.info('Your cart is empty. Add some dishes first!');
             return;
         }
+        if (requiresOnlinePayment && !paymentIntent && !isCardFormComplete) {
+            setCardTouched({ number: true, expMonth: true, expYear: true, cvc: true });
+            toast.error('Please enter your card details to pay for this order.');
+            return;
+        }
 
         try {
             setPlacingOrder(true);
@@ -101,11 +189,65 @@ const CheckoutPage = () => {
                 useDiscount &&
                 discountBalanceCents > 0 &&
                 !(selectedVoucher && selectedVoucher.voucher?.allowStackWithPoints === false);
+
+            let paymentIntentId = paymentIntent?.paymentIntentId || null;
+            let paymentSummary = paymentIntent || null;
+
+            if (requiresOnlinePayment && !paymentIntentId) {
+                setProcessingPayment(true);
+                setPaymentError('');
+                try {
+                    const expMonth = Number.parseInt(cardExpMonth, 10);
+                    const expYear = Number.parseInt(cardExpYear, 10);
+                    if (!Number.isInteger(expMonth) || !Number.isInteger(expYear)) {
+                        setCardTouched({ number: true, expMonth: true, expYear: true, cvc: true });
+                        const invalidMessage = 'Please provide a valid expiry date before continuing.';
+                        setPaymentError(invalidMessage);
+                        toast.error(invalidMessage);
+                        return;
+                    }
+                    const paymentResponse = await processCustomerPayment({
+                        sessionToken: session.sessionToken,
+                        items: cartItems.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
+                        applyLoyaltyDiscount: allowLoyalty,
+                        customerVoucherId: selectedVoucherId || undefined,
+                        card: {
+                            number: cardNumber.replace(/\\s+/g, ''),
+                            expMonth,
+                            expYear,
+                            cvc: cardCvc,
+                            name: cardName || undefined
+                        }
+                    });
+                    const paymentData = paymentResponse.data?.data;
+                    if (!paymentData || paymentData.status !== 'SUCCEEDED') {
+                        const fallbackMessage =
+                            paymentData?.failureMessage || 'Payment could not be authorised. Please try again.';
+                        setPaymentError(fallbackMessage);
+                        toast.error(fallbackMessage);
+                        return;
+                    }
+                    setPaymentIntent(paymentData);
+                    paymentIntentId = paymentData.paymentIntentId;
+                    paymentSummary = paymentData;
+                    setPaymentError('');
+                } catch (error) {
+                    const message = error.response?.data?.message || error.message || 'Unable to process payment';
+                    setPaymentError(message);
+                    toast.error(message);
+                    return;
+                } finally {
+                    setProcessingPayment(false);
+                }
+            }
+
             const response = await placeCustomerOrder({
                 sessionToken: session.sessionToken,
                 items: cartItems.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
                 applyLoyaltyDiscount: allowLoyalty,
-                customerVoucherId: selectedVoucherId || undefined
+                customerVoucherId: selectedVoucherId || undefined,
+                paymentIntentId: paymentIntentId || undefined,
+                payInCash: payInCash ? true : undefined
             });
             const payload = response.data?.data;
             if (payload?.membership) {
@@ -124,10 +266,25 @@ const CheckoutPage = () => {
             if (earnedPoints > 0) {
                 messageParts.push(`You earned ${earnedPoints} point${earnedPoints === 1 ? '' : 's'}.`);
             }
+            if (paymentIntentId && paymentSummary) {
+                messageParts.push(
+                    `Payment confirmed · ${paymentSummary.cardBrand || 'card'} ••••${paymentSummary.cardLast4 || ''}`.trim()
+                );
+            } else if (payInCash && finalTotalCents > 0) {
+                messageParts.push('Please pay at the cashier counter when you are ready.');
+            }
             toast.success(messageParts.join(' '));
             clearCart();
             markOrdersDirty();
             setSelectedVoucherId('');
+            setPaymentIntent(null);
+            setCardNumber('');
+            setCardName('');
+            setCardExpMonth('');
+            setCardExpYear('');
+            setCardCvc('');
+            setPaymentError('');
+            resetCardTouched();
             if (typeof refreshPromotions === 'function') {
                 const maybeRefresh = refreshPromotions();
                 if (maybeRefresh && typeof maybeRefresh.catch === 'function') {
@@ -140,10 +297,15 @@ const CheckoutPage = () => {
             toast.error(message);
         } finally {
             setPlacingOrder(false);
+            setProcessingPayment(false);
         }
     };
 
     const handleBackToMenu = () => navigate('/');
+
+    const paymentFormDisabled = placingOrder || processingPayment || Boolean(paymentIntent);
+    const placeOrderDisabled =
+        placingOrder || processingPayment || (requiresOnlinePayment && !paymentIntent && !isCardFormComplete);
 
     return (
         <div className="checkout-page">
@@ -248,7 +410,7 @@ const CheckoutPage = () => {
                             )}
                             {discountBalanceCents > 0 && (
                                 <div className="checkout-summary__row flex-column align-items-start">
-                                <Form.Check
+                                    <Form.Check
                                     type="switch"
                                     id="apply-loyalty-discount"
                                     label={`Apply loyalty discount (banked)`}
@@ -276,6 +438,178 @@ const CheckoutPage = () => {
                             </div>
                         </div>
 
+                        <div className="checkout-payment mt-4">
+                            <h2 className="h5 mb-3">Payment</h2>
+                            <div className="d-flex flex-wrap gap-3 mb-3">
+                                <Form.Check
+                                    type="radio"
+                                    id="payment-mode-card"
+                                    name="payment-mode"
+                                    label="Online card"
+                                    value="card"
+                                    checked={paymentMode === 'card'}
+                                    onChange={() => setPaymentMode('card')}
+                                    disabled={placingOrder || processingPayment}
+                                />
+                                <Form.Check
+                                    type="radio"
+                                    id="payment-mode-cash"
+                                    name="payment-mode"
+                                    label="Pay at counter"
+                                    value="cash"
+                                    checked={paymentMode === 'cash'}
+                                    onChange={() => setPaymentMode('cash')}
+                                    disabled={placingOrder || processingPayment}
+                                />
+                            </div>
+                            {paymentMode === 'card' ? (
+                                finalTotalCents > 0 ? (
+                                    <>
+                                        {paymentIntent ? (
+                                            <div className="alert alert-success py-2 px-3 d-flex justify-content-between align-items-center">
+                                                <span>
+                                                    Ready to place order with{' '}
+                                                    {paymentIntent.cardBrand ? paymentIntent.cardBrand.toUpperCase() : 'card'}{' '}
+                                                    ending in {paymentIntent.cardLast4 || '****'}.
+                                                </span>
+                                                <Button
+                                                    variant="link"
+                                                    size="sm"
+                                                    className="p-0 ms-3"
+                                                    onClick={() => {
+                                                        setPaymentIntent(null);
+                                                        setPaymentError('');
+                                                        resetCardTouched();
+                                                        setCardNumber('');
+                                                        setCardName('');
+                                                        setCardExpMonth('');
+                                                        setCardExpYear('');
+                                                        setCardCvc('');
+                                                    }}
+                                                >
+                                                    Use a different card
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <Form.Text muted className="d-block mb-3">
+                                                Use the Stripe test card 4242 4242 4242 4242 with any future expiry and CVC to
+                                                simulate a successful payment.
+                                            </Form.Text>
+                                        )}
+                                        {paymentError && (
+                                            <div className="alert alert-danger py-2 px-3">{paymentError}</div>
+                                        )}
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Card number</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                inputMode="numeric"
+                                                autoComplete="cc-number"
+                                                value={cardNumber}
+                                                placeholder="4242 4242 4242 4242"
+                                                disabled={paymentFormDisabled}
+                                                isInvalid={cardTouched.number && Boolean(cardErrors.number)}
+                                                onChange={(event) => {
+                                                    const digits = event.target.value.replace(/\D/g, '').slice(0, 19);
+                                                    const formatted = digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+                                                    setCardNumber(formatted);
+                                                    setPaymentError('');
+                                                }}
+                                                onBlur={() => setCardTouched((prev) => ({ ...prev, number: true }))}
+                                            />
+                                            <Form.Control.Feedback type="invalid">{cardErrors.number}</Form.Control.Feedback>
+                                        </Form.Group>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Name on card</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                autoComplete="cc-name"
+                                                disabled={paymentFormDisabled}
+                                                value={cardName}
+                                                onChange={(event) => {
+                                                    setCardName(event.target.value);
+                                                    setPaymentError('');
+                                                }}
+                                            />
+                                        </Form.Group>
+                                        <div className="d-flex gap-3">
+                                            <Form.Group className="mb-3 flex-fill">
+                                                <Form.Label>Expiry month</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    autoComplete="cc-exp-month"
+                                                    placeholder="MM"
+                                                    disabled={paymentFormDisabled}
+                                                    value={cardExpMonth}
+                                                    isInvalid={cardTouched.expMonth && Boolean(cardErrors.expiry)}
+                                                    onChange={(event) => {
+                                                        setCardExpMonth(event.target.value.replace(/\D/g, '').slice(0, 2));
+                                                        setPaymentError('');
+                                                    }}
+                                                    onBlur={() => setCardTouched((prev) => ({ ...prev, expMonth: true }))}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {cardErrors.expiry}
+                                                </Form.Control.Feedback>
+                                            </Form.Group>
+                                            <Form.Group className="mb-3 flex-fill">
+                                                <Form.Label>Expiry year</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    autoComplete="cc-exp-year"
+                                                    placeholder="YYYY"
+                                                    disabled={paymentFormDisabled}
+                                                    value={cardExpYear}
+                                                    isInvalid={cardTouched.expYear && Boolean(cardErrors.expiry)}
+                                                    onChange={(event) => {
+                                                        setCardExpYear(event.target.value.replace(/\D/g, '').slice(0, 4));
+                                                        setPaymentError('');
+                                                    }}
+                                                    onBlur={() => setCardTouched((prev) => ({ ...prev, expYear: true }))}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {cardErrors.expiry}
+                                                </Form.Control.Feedback>
+                                            </Form.Group>
+                                            <Form.Group className="mb-3 flex-fill">
+                                                <Form.Label>CVC</Form.Label>
+                                                <Form.Control
+                                                    type="password"
+                                                    inputMode="numeric"
+                                                    autoComplete="cc-csc"
+                                                    placeholder="CVC"
+                                                    disabled={paymentFormDisabled}
+                                                    value={cardCvc}
+                                                    isInvalid={cardTouched.cvc && Boolean(cardErrors.cvc)}
+                                                    onChange={(event) => {
+                                                        setCardCvc(event.target.value.replace(/\D/g, '').slice(0, 4));
+                                                        setPaymentError('');
+                                                    }}
+                                                    onBlur={() => setCardTouched((prev) => ({ ...prev, cvc: true }))}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {cardErrors.cvc}
+                                                </Form.Control.Feedback>
+                                            </Form.Group>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="alert alert-info py-2 px-3 mb-0">
+                                        Discounts cover the total. No payment is required.
+                                    </div>
+                                )
+                            ) : finalTotalCents > 0 ? (
+                                <div className="alert alert-warning py-2 px-3 mb-0">
+                                    We will reserve your order. Please pay at the cashier counter before leaving.
+                                </div>
+                            ) : (
+                                <div className="alert alert-info py-2 px-3 mb-0">
+                                    No payment needed — we will get started right away.
+                                </div>
+                            )}
+                        </div>
                         <div className="checkout-actions">
                             <Button variant="outline-secondary" onClick={clearCart} disabled={placingOrder}>
                                 Clear cart
@@ -296,14 +630,19 @@ const CheckoutPage = () => {
                             }} className="me-2">
                                 End session
                             </Button>
-                            <Button onClick={handlePlaceOrder} disabled={placingOrder}>
+                            <Button onClick={handlePlaceOrder} disabled={placeOrderDisabled}>
                                 {placingOrder ? (
                                     <>
                                         <Spinner animation="border" size="sm" className="me-2" />
                                         Sending...
                                     </>
+                                ) : processingPayment ? (
+                                    <>
+                                        <Spinner animation="border" size="sm" className="me-2" />
+                                        Authorising...
+                                    </>
                                 ) : (
-                                    'Place order now'
+                                    payInCash ? 'Place order (pay at counter)' : requiresOnlinePayment ? 'Pay & place order' : 'Place order now'
                                 )}
                             </Button>
                         </div>
