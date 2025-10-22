@@ -46,11 +46,10 @@ const env = {
         privateKey: process.env.NOTIFICATION_PRIVATE_KEY,
         email: process.env.NOTIFICATION_USER
     },
-    vnpay: {
-        tmnCode: process.env.VNPAY_TMN_CODE,
-        hashSecret: process.env.VNPAY_HASH_SECRET,
-        apiUrl: process.env.VNPAY_API_URL,
-        returnUrl: process.env.VNPAY_RETURN_URL
+    stripe: {
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+        secretKey: process.env.STRIPE_SECRET_KEY || '',
+        mode: process.env.STRIPE_MODE || 'test'
     },
     plans: {
         standardMonthly: process.env.STANDARD_MONTHLY,
