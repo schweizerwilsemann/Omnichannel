@@ -7,6 +7,9 @@ export const fetchCustomerOrders = (sessionToken) => api.get('/customer/orders',
 export const requestMembershipVerification = (payload) => api.post('/customer/memberships/register', payload);
 export const verifyMembershipToken = (params) => api.get('/customer/memberships/verify', { params });
 export const getMembershipStatus = (params) => api.get('/customer/memberships/status', { params });
+export const processCustomerPayment = (payload) => api.post('/customer/payments/charge', payload);
+export const fetchPaymentIntent = (sessionToken, paymentIntentId) =>
+    api.get(`/customer/payments/${paymentIntentId}`, { params: { sessionToken } });
 export const lookupTableBySlug = (qrSlug) => api.get('/customer/tables/lookup', { params: { qrSlug } });
 export const fetchCustomerPromotions = (sessionToken) =>
     api.get('/customer/promotions', { params: { sessionToken } });
