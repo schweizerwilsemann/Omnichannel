@@ -545,47 +545,49 @@ const SessionSetup = () => {
     );
 
     return (
-        <div className="vh-100 d-flex align-items-center justify-content-center bg-light p-3">
-            <Card className="w-100" style={{ maxWidth: 480 }}>
-                <Card.Body className="d-flex flex-column gap-3">
-                    <div>
-                        <h2 className="mb-1">Welcome{restaurantName ? ` to ${restaurantName}` : ''}</h2>
-                        <p className="text-muted mb-0">
-                            {tableLoading
-                                ? 'Checking your table details...'
-                                : `You are checking in for table ${tableName}.`}
-                        </p>
-                    </div>
-                    {hasDifferentActiveSession && (
-                        <Alert variant="warning" className="mb-0">
-                            This table already has an active order open. Let the staff know if it should be cleared before
-                            you continue.
-                        </Alert>
-                    )}
-                    <div className="d-flex gap-2">
-                        <Button
-                            size="sm"
-                            variant={mode === 'authenticate' ? 'primary' : 'outline-primary'}
-                            onClick={() => switchMode('authenticate')}
-                        >
-                            I have an account
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant={mode === 'register' ? 'primary' : 'outline-primary'}
-                            onClick={() => switchMode('register')}
-                        >
-                            Register membership
-                        </Button>
-                    </div>
-                    {mode === 'authenticate'
-                        ? authPhase === AUTH_PHASE.TOTP
-                            ? renderTotpForm()
-                            : renderAuthForm()
-                        : renderRegisterForm()}
-                    {error && <Alert variant="danger" className="mb-0 text-center">{error}</Alert>}
-                </Card.Body>
-            </Card>
+        <div className="bg-light min-vh-100 d-flex flex-column">
+            <div className="container flex-grow-1 py-4 py-md-5 d-flex justify-content-center align-items-start align-items-md-center">
+                <Card className="w-100 shadow-sm" style={{ maxWidth: 520 }}>
+                    <Card.Body className="d-flex flex-column gap-3">
+                        <div>
+                            <h2 className="mb-1">Welcome{restaurantName ? ` to ${restaurantName}` : ''}</h2>
+                            <p className="text-muted mb-0">
+                                {tableLoading
+                                    ? 'Checking your table details...'
+                                    : `You are checking in for table ${tableName}.`}
+                            </p>
+                        </div>
+                        {hasDifferentActiveSession && (
+                            <Alert variant="warning" className="mb-0">
+                                This table already has an active order open. Let the staff know if it should be cleared
+                                before you continue.
+                            </Alert>
+                        )}
+                        <div className="d-flex gap-2">
+                            <Button
+                                size="sm"
+                                variant={mode === 'authenticate' ? 'primary' : 'outline-primary'}
+                                onClick={() => switchMode('authenticate')}
+                            >
+                                I have an account
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={mode === 'register' ? 'primary' : 'outline-primary'}
+                                onClick={() => switchMode('register')}
+                            >
+                                Register membership
+                            </Button>
+                        </div>
+                        {mode === 'authenticate'
+                            ? authPhase === AUTH_PHASE.TOTP
+                                ? renderTotpForm()
+                                : renderAuthForm()
+                            : renderRegisterForm()}
+                        {error && <Alert variant="danger" className="mb-0 text-center">{error}</Alert>}
+                    </Card.Body>
+                </Card>
+            </div>
         </div>
     );
 };
