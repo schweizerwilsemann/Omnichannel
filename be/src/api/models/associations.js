@@ -18,9 +18,9 @@ const setupAssociations = (models) => {
         GuestSession,
         CustomerAuthChallenge,
         Order,
-    OrderItem,
-    OrderItemRating,
-    KdsTicket,
+        OrderItem,
+        OrderItemRating,
+        KdsTicket,
         KdsActivityLog,
         CustomerVerificationToken,
         Notification,
@@ -28,7 +28,8 @@ const setupAssociations = (models) => {
         Voucher,
         VoucherTier,
         CustomerVoucher,
-        MenuRecommendation
+        MenuRecommendation,
+        MenuRecommendationHistory
     } = models;
 
     User.hasOne(UserCredential, { foreignKey: 'user_id', as: 'credential' });
@@ -165,6 +166,33 @@ const setupAssociations = (models) => {
 
     MenuItem.hasMany(MenuRecommendation, { foreignKey: 'recommended_item_id', as: 'recommendationsAsCompanion' });
     MenuRecommendation.belongsTo(MenuItem, { foreignKey: 'recommended_item_id', as: 'recommendedItem' });
+
+    if (MenuRecommendationHistory) {
+        Restaurant.hasMany(MenuRecommendationHistory, {
+            foreignKey: 'restaurant_id',
+            as: 'menuRecommendationHistory'
+        });
+        MenuRecommendationHistory.belongsTo(Restaurant, {
+            foreignKey: 'restaurant_id',
+            as: 'restaurant'
+        });
+        MenuItem.hasMany(MenuRecommendationHistory, {
+            foreignKey: 'base_item_id',
+            as: 'recommendationHistoryAsBase'
+        });
+        MenuRecommendationHistory.belongsTo(MenuItem, {
+            foreignKey: 'base_item_id',
+            as: 'baseItem'
+        });
+        MenuItem.hasMany(MenuRecommendationHistory, {
+            foreignKey: 'recommended_item_id',
+            as: 'recommendationHistoryAsCompanion'
+        });
+        MenuRecommendationHistory.belongsTo(MenuItem, {
+            foreignKey: 'recommended_item_id',
+            as: 'recommendedItem'
+        });
+    }
 };
 
 export default setupAssociations;

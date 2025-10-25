@@ -151,10 +151,16 @@ export const getDashboardOverviewController = async (req, res) => {
 export const listMenuRecommendationsController = async (req, res) => {
     try {
         const restaurantIds = req.user?.restaurantIds || [];
+        const parseNumeric = (value) => {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : undefined;
+        };
         const options = {
             restaurantId: req.query.restaurantId || undefined,
-            minAttachRate: Number.isFinite(req.query.minAttachRate) ? req.query.minAttachRate : undefined,
-            limit: Number.isFinite(req.query.limit) ? req.query.limit : undefined
+            minAttachRate: parseNumeric(req.query.minAttachRate),
+            limit: parseNumeric(req.query.limit),
+            page: parseNumeric(req.query.page),
+            trendWindowDays: parseNumeric(req.query.trendWindowDays)
         };
         const analytics = await listRecommendationAnalytics(restaurantIds, options);
         return successResponse(res, analytics, 200);
