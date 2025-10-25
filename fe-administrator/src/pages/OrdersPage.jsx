@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Alert, Badge, Button, Card, Modal, Spinner } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Modal, Pagination, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import MainLayout from '../components/layout/MainLayout.jsx';
 import { fetchOrders, updateOrderStatus, updateOrderPaymentStatus } from '../services/order.service.js';
@@ -74,12 +74,15 @@ const formatAge = (iso) => {
     return `${days}d ago`;
 };
 
+const PAGE_SIZE = 10;
+
 const OrdersPage = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [updating, setUpdating] = useState({});
     const [paymentUpdating, setPaymentUpdating] = useState({});
     const [readyModalOrder, setReadyModalOrder] = useState(null);
+    const [page, setPage] = useState(1);
     const accessToken = useSelector((state) => state.auth.accessToken);
     const restaurantIds = useSelector((state) => state.auth.user?.restaurantIds || []);
 
@@ -88,6 +91,7 @@ const OrdersPage = () => {
             setLoading(true);
             const { data } = await fetchOrders();
             setOrders(sortOrders(data?.data || []));
+            setPage(1);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to load orders');
         } finally {
@@ -217,7 +221,68 @@ const OrdersPage = () => {
         [mergeIncomingOrder]
     );
 
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(Math.max(orders.length, 1) / PAGE_SIZE));
+        if (page > totalPages) {
+            setPage(totalPages);
+        }
+    }, [orders.length, page]);
+
     const rows = useMemo(() => orders, [orders]);
+    const totalPages = Math.max(1, Math.ceil(Math.max(rows.length, 1) / PAGE_SIZE));
+    const currentPage = Math.min(page, totalPages);
+    const paginatedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    const hasRows = paginatedRows.length > 0;
+    const startEntry = hasRows ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
+    const endEntry = hasRows ? startEntry + paginatedRows.length - 1 : 0;
+
+    const handlePageChange = (nextPage) => {
+        if (nextPage < 1 || nextPage > totalPages || nextPage === currentPage) {
+            return;
+        }
+        setPage(nextPage);
+    };
+
+    const renderPagination = () => {
+        if (rows.length <= PAGE_SIZE) {
+            return null;
+        }
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = startPage + maxPagesToShow - 1;
+        if (endPage > totalPages) {
+            endPage = totalPages;
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+        const items = [];
+        for (let idx = startPage; idx <= endPage; idx += 1) {
+            items.push(
+                <Pagination.Item key={idx} active={idx === currentPage} onClick={() => handlePageChange(idx)}>
+                    {idx}
+                </Pagination.Item>
+            );
+        }
+        return (
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mt-3 gap-2">
+                <div className="text-muted small">
+                    Showing {startEntry}-{endEntry} of {rows.length} orders
+                </div>
+                <Pagination className="mb-0">
+                    <Pagination.First disabled={currentPage === 1} onClick={() => handlePageChange(1)} />
+                    <Pagination.Prev disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} />
+                    {items}
+                    <Pagination.Next
+                        disabled={currentPage === totalPages}
+                        onClick={() => handlePageChange(currentPage + 1)}
+                    />
+                    <Pagination.Last
+                        disabled={currentPage === totalPages}
+                        onClick={() => handlePageChange(totalPages)}
+                    />
+                </Pagination>
+            </div>
+        );
+    };
 
     return (
         <MainLayout>
@@ -238,7 +303,7 @@ const OrdersPage = () => {
                 <Alert variant="light" className="border text-center">No orders on deck right now.</Alert>
             ) : (
                 <div className="d-flex flex-column gap-3">
-                    {rows.map((order) => {
+                    {paginatedRows.map((order) => {
                         const actions = actionableStatuses[order.status] || [];
                         const isUpdating = Boolean(updating[order.id]);
                         const payment = order.payment || {};
@@ -369,6 +434,7 @@ const OrdersPage = () => {
                             </Card>
                         );
                     })}
+                    {renderPagination()}
                 </div>
             )}
             <Modal show={Boolean(readyModalOrder)} onHide={() => setReadyModalOrder(null)} centered>
