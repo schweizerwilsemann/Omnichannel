@@ -1,0 +1,1227 @@
+{
+  "exported_at": null,
+  "count": 43,
+  "items": [
+    {
+      "menu_item_id": "609b8c76-4c9c-4b12-982b-23bac0973d23",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "37bc7730-b525-4974-ab89-c4e546c52fad",
+      "category_name": "Soups & Salads",
+      "sku": "SOU001",
+      "name": "Lobster Bisque",
+      "description": "Rich and creamy lobster bisque with cognac and fresh herbs",
+      "image_url": "https://images.unsplash.com/photo-1547592180-85f173990554?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1299,
+      "prep_time_seconds": 600,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "lobster",
+        "cream",
+        "lobster stock",
+        "cognac",
+        "fresh herbs"
+      ],
+      "allergens": [
+        "shellfish",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "contains-shellfish",
+        "contains-alcohol"
+      ],
+      "contains_alcohol": true,
+      "notes": "Traditional bisque finished with a splash of cognac; rich and creamy."
+    },
+    {
+      "menu_item_id": "abcee9b5-711c-4d7c-9c11-2058826ad000",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "37bc7730-b525-4974-ab89-c4e546c52fad",
+      "category_name": "Soups & Salads",
+      "sku": "SAL001",
+      "name": "Caesar Salad",
+      "description": "Romaine lettuce, parmesan cheese, croutons, and our house-made caesar dressing",
+      "image_url": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1199,
+      "prep_time_seconds": 300,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "romaine lettuce",
+        "parmesan",
+        "garlic croutons",
+        "anchovy dressing"
+      ],
+      "allergens": [
+        "dairy",
+        "gluten",
+        "fish",
+        "egg"
+      ],
+      "dietary_tags": [
+        "contains-fish"
+      ],
+      "contains_alcohol": false,
+      "notes": "Anchovy-forward dressing; not vegetarian."
+    },
+    {
+      "menu_item_id": "b7b6073b-d886-4ca3-856d-9b7357edb1a6",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "37bc7730-b525-4974-ab89-c4e546c52fad",
+      "category_name": "Soups & Salads",
+      "sku": "SAL003",
+      "name": "Harvest Quinoa Salad",
+      "description": "Tri-color quinoa, roasted squash, cranberries, toasted pepitas, and citrus vinaigrette",
+      "image_url": "https://images.unsplash.com/photo-1505253758473-96b7015fcd40?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1499,
+      "prep_time_seconds": 420,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "tri-color quinoa",
+        "roasted squash",
+        "cranberries",
+        "toasted pepitas",
+        "citrus vinaigrette"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten-free"
+      ],
+      "contains_alcohol": false,
+      "notes": "Pepitas are pumpkin seeds; suitable for most nut-free guests."
+    },
+    {
+      "menu_item_id": "dc289bdb-6d3e-46a6-a4b8-bb0b90ef9745",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "37bc7730-b525-4974-ab89-c4e546c52fad",
+      "category_name": "Soups & Salads",
+      "sku": "SOU002",
+      "name": "Roasted Tomato Soup",
+      "description": "Fire-roasted tomatoes blended with basil cream and served with grilled sourdough",
+      "image_url": "https://images.unsplash.com/photo-1447078806655-40579c2520d6?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1199,
+      "prep_time_seconds": 540,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "fire-roasted tomatoes",
+        "basil cream",
+        "vegetable stock",
+        "grilled sourdough"
+      ],
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "f5c44048-16e1-406a-842f-39e32924dd9d",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "37bc7730-b525-4974-ab89-c4e546c52fad",
+      "category_name": "Soups & Salads",
+      "sku": "SAL002",
+      "name": "Arugula & Pear Salad",
+      "description": "Fresh arugula with sliced pears, candied walnuts, and gorgonzola cheese",
+      "image_url": "https://images.unsplash.com/photo-1546793665-c74683f339c1?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1399,
+      "prep_time_seconds": 300,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "arugula",
+        "pear",
+        "candied walnuts",
+        "gorgonzola",
+        "balsamic"
+      ],
+      "allergens": [
+        "tree-nut",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "5cda6132-3249-4bd2-a833-94c985bd48df",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "4f6a31c5-f662-4006-8418-3cbc8b9edd15",
+      "category_name": "Wine & Cocktails",
+      "sku": "WIN002",
+      "name": "Pinot Grigio",
+      "description": "2020 Pinot Grigio, Veneto - Crisp and refreshing white wine",
+      "image_url": "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1199,
+      "prep_time_seconds": 60,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "pinot grigio",
+        "grapes"
+      ],
+      "allergens": [
+        "sulfites"
+      ],
+      "dietary_tags": [
+        "alcoholic-beverage",
+        "gluten-free"
+      ],
+      "contains_alcohol": true
+    },
+    {
+      "menu_item_id": "7b4d8e26-c941-411f-b02d-4af26315d5dc",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "4f6a31c5-f662-4006-8418-3cbc8b9edd15",
+      "category_name": "Wine & Cocktails",
+      "sku": "COCK003",
+      "name": "Espresso Martini",
+      "description": "Vodka, espresso, coffee liqueur, and vanilla syrup shaken to a silky foam",
+      "image_url": "http://localhost:3301/api/v1/assets/1761370695670-remy-martin-cocktails-remy-espresso-1x1-250220-02.webp",
+      "price_cents": 1399,
+      "prep_time_seconds": 240,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "vodka",
+        "fresh espresso",
+        "coffee liqueur",
+        "vanilla syrup"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "alcoholic-beverage"
+      ],
+      "contains_alcohol": true,
+      "notes": "High caffeine cocktail; shaken to a silky foam."
+    },
+    {
+      "menu_item_id": "afe68abc-405b-4a1b-bde9-d9f1f92457cb",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "4f6a31c5-f662-4006-8418-3cbc8b9edd15",
+      "category_name": "Wine & Cocktails",
+      "sku": "COCK002",
+      "name": "Aperol Spritz",
+      "description": "Aperol, prosecco, soda, and orange slice served over ice",
+      "image_url": "https://images.unsplash.com/photo-1510626176961-4b57d4fbad03?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1199,
+      "prep_time_seconds": 120,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "aperol",
+        "prosecco",
+        "soda water",
+        "orange"
+      ],
+      "allergens": [
+        "sulfites"
+      ],
+      "dietary_tags": [
+        "alcoholic-beverage",
+        "gluten-free"
+      ],
+      "contains_alcohol": true
+    },
+    {
+      "menu_item_id": "b3162052-10a4-4a0f-a964-81fee15bf395",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "4f6a31c5-f662-4006-8418-3cbc8b9edd15",
+      "category_name": "Wine & Cocktails",
+      "sku": "COCK001",
+      "name": "Negroni",
+      "description": "Classic Italian cocktail with gin, Campari, and sweet vermouth",
+      "image_url": "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1299,
+      "prep_time_seconds": 180,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "gin",
+        "campari",
+        "sweet vermouth",
+        "orange peel"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "alcoholic-beverage"
+      ],
+      "contains_alcohol": true,
+      "notes": "Balanced bitter cocktail with noticeable alcohol heat."
+    },
+    {
+      "menu_item_id": "d763a8aa-56b6-4506-b3bc-a407fe2551cf",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "4f6a31c5-f662-4006-8418-3cbc8b9edd15",
+      "category_name": "Wine & Cocktails",
+      "sku": "WIN001",
+      "name": "Chianti Classico",
+      "description": "2019 Chianti Classico, Tuscany - Full-bodied red wine",
+      "image_url": "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1299,
+      "prep_time_seconds": 60,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "sangiovese grapes"
+      ],
+      "allergens": [
+        "sulfites"
+      ],
+      "dietary_tags": [
+        "alcoholic-beverage"
+      ],
+      "contains_alcohol": true
+    },
+    {
+      "menu_item_id": "0179135e-fcf0-4245-b16a-dd4625c2121d",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "57412a6b-7e6c-48ec-95b8-15743f24f176",
+      "category_name": "Appetizers",
+      "sku": "APP001",
+      "name": "Bruschetta Trio",
+      "description": "Three varieties of bruschetta: classic tomato basil, mushroom truffle, and goat cheese with honey",
+      "image_url": "https://media.istockphoto.com/id/1181611076/vi/anh/bruschetta-%C3%BD-t%E1%BB%B1-l%C3%A0m-tr%C3%AAn-b%C3%A0n-g%E1%BB%97-m%E1%BB%99c-m%E1%BA%A1c.jpg?s=1024x1024&w=is&k=20&c=LOaz1hFu3cx5Mdd0bYgZdgCD9FTZMgauPDrofXbgAbE=",
+      "price_cents": 1299,
+      "prep_time_seconds": 600,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "tomatoes",
+        "basil",
+        "mushroom ragù",
+        "goat cheese",
+        "baguette"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "21a15ef4-192a-48ea-84b9-b562aff2bd50",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "57412a6b-7e6c-48ec-95b8-15743f24f176",
+      "category_name": "Appetizers",
+      "sku": "APP004",
+      "name": "Charcuterie Board",
+      "description": "Artisanal cured meats, aged cheeses, fig jam, and grilled focaccia",
+      "image_url": "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1899,
+      "prep_time_seconds": 600,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "cured meats",
+        "aged cheeses",
+        "fig jam",
+        "grilled focaccia"
+      ],
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "dietary_tags": [
+        "contains-pork"
+      ],
+      "contains_alcohol": false,
+      "notes": "Board composition can vary; request details for nut allergies."
+    },
+    {
+      "menu_item_id": "27c0cc41-532a-4c41-afab-f73f5331e139",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "57412a6b-7e6c-48ec-95b8-15743f24f176",
+      "category_name": "Appetizers",
+      "sku": "APP002",
+      "name": "Calamari Fritti",
+      "description": "Crispy fried calamari rings served with marinara sauce and lemon aioli",
+      "image_url": "https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1599,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "squid",
+        "semolina batter",
+        "marinara",
+        "aioli"
+      ],
+      "allergens": [
+        "shellfish",
+        "gluten",
+        "egg"
+      ],
+      "dietary_tags": [
+        "contains-shellfish"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "898f1b89-bef7-4385-a53d-947eb831da6f",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "57412a6b-7e6c-48ec-95b8-15743f24f176",
+      "category_name": "Appetizers",
+      "sku": "APP005",
+      "name": "Stuffed Portobello",
+      "description": "Roasted portobello mushroom filled with ricotta, spinach, and pine nuts",
+      "image_url": "https://images.unsplash.com/photo-1447078806655-40579c2520d6?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1499,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "portobello mushroom",
+        "ricotta",
+        "spinach",
+        "pine nuts"
+      ],
+      "allergens": [
+        "dairy",
+        "tree-nut"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "bf68d98e-c2db-4458-b7a1-a2b9520c7373",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "57412a6b-7e6c-48ec-95b8-15743f24f176",
+      "category_name": "Appetizers",
+      "sku": "APP003",
+      "name": "Burrata Caprese",
+      "description": "Fresh burrata cheese with heirloom tomatoes, basil, and aged balsamic glaze",
+      "image_url": "https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1799,
+      "prep_time_seconds": 300,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "burrata",
+        "heirloom tomatoes",
+        "basil",
+        "balsamic glaze"
+      ],
+      "allergens": [
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian",
+        "gluten-free"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "23658853-2f72-4f47-ab66-f98a22ba423e",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "69a60eb9-5eda-407a-9276-af70f5f175ae",
+      "category_name": "Beverages",
+      "sku": "BEV003",
+      "name": "Espresso",
+      "description": "Single shot of premium Italian espresso",
+      "image_url": "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 299,
+      "prep_time_seconds": 120,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "arabica espresso"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten-free"
+      ],
+      "contains_alcohol": false,
+      "notes": "Contains caffeine."
+    },
+    {
+      "menu_item_id": "34e3cb6e-c84d-45c9-88d7-2b35361f8e0f",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "69a60eb9-5eda-407a-9276-af70f5f175ae",
+      "category_name": "Beverages",
+      "sku": "BEV002",
+      "name": "Italian Soda",
+      "description": "Choice of flavors: raspberry, peach, or vanilla",
+      "image_url": "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 399,
+      "prep_time_seconds": 60,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "syrup",
+        "sparkling water",
+        "cream (optional)"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false,
+      "notes": "Contains added sugar; optional cream topping adds dairy."
+    },
+    {
+      "menu_item_id": "5cbada32-c16f-4512-b9b5-adce94574d21",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "69a60eb9-5eda-407a-9276-af70f5f175ae",
+      "category_name": "Beverages",
+      "sku": "BEV004",
+      "name": "Cold Brew Tonic",
+      "description": "Slow-steeped cold brew coffee poured over citrus tonic and a twist of grapefruit",
+      "image_url": "http://localhost:3301/api/v1/assets/1761370359465-coldbrewtonic.png",
+      "price_cents": 599,
+      "prep_time_seconds": 120,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "cold brew concentrate",
+        "citrus tonic",
+        "grapefruit peel"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten-free"
+      ],
+      "contains_alcohol": false,
+      "notes": "Highly caffeinated sparkling coffee."
+    },
+    {
+      "menu_item_id": "7f10fc4b-1749-4708-85de-ee4edba3935d",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "69a60eb9-5eda-407a-9276-af70f5f175ae",
+      "category_name": "Beverages",
+      "sku": "BEV001",
+      "name": "Fresh Orange Juice",
+      "description": "Freshly squeezed orange juice",
+      "image_url": "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 499,
+      "prep_time_seconds": 60,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "fresh orange juice"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten-free"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "cc7355c7-f96e-457c-8892-829d546db321",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "69a60eb9-5eda-407a-9276-af70f5f175ae",
+      "category_name": "Beverages",
+      "sku": "BEV006",
+      "name": "Matcha Oat Latte",
+      "description": "Ceremonial grade matcha whisked with steamed oat milk and wildflower honey",
+      "image_url": "http://localhost:3301/api/v1/assets/1761370454092-oat-milk-matcha-latte.jpg",
+      "price_cents": 649,
+      "prep_time_seconds": 180,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "ceremonial matcha",
+        "oat milk",
+        "wildflower honey"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false,
+      "notes": "Contains honey; not vegan. Oat milk may contain trace gluten."
+    },
+    {
+      "menu_item_id": "d56850ed-12d2-4ef9-a405-8c4e208267c0",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "69a60eb9-5eda-407a-9276-af70f5f175ae",
+      "category_name": "Beverages",
+      "sku": "BEV005",
+      "name": "Yuzu Sparkler",
+      "description": "Yuzu puree, mint, sparkling water, and a hint of agave",
+      "image_url": "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 699,
+      "prep_time_seconds": 180,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "yuzu puree",
+        "mint",
+        "sparkling water",
+        "agave"
+      ],
+      "allergens": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten-free"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "3fe9fb15-9593-48a7-9b6c-500c291c63aa",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "6bfca249-a9aa-4736-bd7e-c635cdd72ed0",
+      "category_name": "Pizza",
+      "sku": "PIZ005",
+      "name": "Wild Mushroom Truffle Pizza",
+      "description": "White sauce, roasted wild mushrooms, taleggio, arugula, and truffle oil",
+      "image_url": "https://images.unsplash.com/photo-1542281286-9e0a16bb7366?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2399,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "pizza dough",
+        "wild mushrooms",
+        "taleggio",
+        "arugula",
+        "truffle oil"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "5b511bda-415f-45c0-95ec-92b9ce0037df",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "6bfca249-a9aa-4736-bd7e-c635cdd72ed0",
+      "category_name": "Pizza",
+      "sku": "PIZ001",
+      "name": "Margherita Pizza",
+      "description": "San Marzano tomatoes, fresh mozzarella, basil, and extra virgin olive oil",
+      "image_url": "https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 1899,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "pizza dough",
+        "san marzano tomatoes",
+        "mozzarella",
+        "basil"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "c802955c-1f30-48ad-8236-35b86587a99d",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "6bfca249-a9aa-4736-bd7e-c635cdd72ed0",
+      "category_name": "Pizza",
+      "sku": "PIZ002",
+      "name": "Prosciutto & Arugula",
+      "description": "White pizza with prosciutto di Parma, arugula, and shaved parmesan",
+      "image_url": "https://images.unsplash.com/photo-1758157835961-5db4a033390b?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "price_cents": 2299,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "pizza dough",
+        "prosciutto di parma",
+        "mozzarella",
+        "arugula",
+        "parmesan"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "contains-pork"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "e7de65ae-b8aa-4086-81e3-093caa8e0963",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "6bfca249-a9aa-4736-bd7e-c635cdd72ed0",
+      "category_name": "Pizza",
+      "sku": "PIZ003",
+      "name": "Quattro Stagioni",
+      "description": "Four seasons pizza with artichokes, mushrooms, prosciutto, and olives",
+      "image_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2499,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "pizza dough",
+        "artichokes",
+        "mushrooms",
+        "prosciutto",
+        "olives"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "contains-pork"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "f0ca9409-d2de-4de5-bf92-750905336f6d",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "6bfca249-a9aa-4736-bd7e-c635cdd72ed0",
+      "category_name": "Pizza",
+      "sku": "PIZ004",
+      "name": "Diavola Pizza",
+      "description": "Spicy soppressata, mozzarella, chili oil, and charred peppers on a blistered crust",
+      "image_url": "http://localhost:3301/api/v1/assets/1761370565221-images-6.jfif",
+      "price_cents": 2099,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "medium",
+      "key_ingredients": [
+        "pizza dough",
+        "spicy soppressata",
+        "mozzarella",
+        "chili oil",
+        "charred peppers"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "contains-pork"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "6259f7aa-328c-41fb-beb2-253cd23636aa",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "7feed785-0b1b-42fb-9973-6300f7864cd5",
+      "category_name": "Pasta & Risotto",
+      "sku": "PAS002",
+      "name": "Truffle Risotto",
+      "description": "Creamy arborio rice with black truffle, parmesan, and wild mushrooms",
+      "image_url": "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2299,
+      "prep_time_seconds": 1200,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "arborio rice",
+        "black truffle",
+        "parmesan",
+        "mushrooms"
+      ],
+      "allergens": [
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian",
+        "gluten-free"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "6b4a65eb-18e8-43ce-b830-358a19988eb3",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "7feed785-0b1b-42fb-9973-6300f7864cd5",
+      "category_name": "Pasta & Risotto",
+      "sku": "PAS001",
+      "name": "Lobster Ravioli",
+      "description": "House-made ravioli filled with lobster and ricotta in a creamy tomato sauce",
+      "image_url": "https://images.unsplash.com/photo-1590759668628-05b0fc34bb70?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "price_cents": 2699,
+      "prep_time_seconds": 900,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "lobster",
+        "ricotta",
+        "pasta dough",
+        "cream tomato sauce"
+      ],
+      "allergens": [
+        "shellfish",
+        "gluten",
+        "dairy",
+        "egg"
+      ],
+      "dietary_tags": [
+        "contains-shellfish"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "87c08a7c-067c-40d7-9517-06e9c5959d32",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "7feed785-0b1b-42fb-9973-6300f7864cd5",
+      "category_name": "Pasta & Risotto",
+      "sku": "PAS004",
+      "name": "Mozzarella Pasta",
+      "description": "Please wait",
+      "image_url": "http://localhost:9000/omnichannel-assets/1760525792704-tomato-and-mozzarella-pasta-9.jpg",
+      "price_cents": 2399,
+      "prep_time_seconds": 600,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "pasta",
+        "marinara",
+        "fresh mozzarella",
+        "basil"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "8e200af8-82f5-444b-ae98-649bab9c78b9",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "7feed785-0b1b-42fb-9973-6300f7864cd5",
+      "category_name": "Pasta & Risotto",
+      "sku": "PAS005",
+      "name": "Seafood Linguine",
+      "description": "Linguine with shrimp, mussels, calamari, and roasted garlic-tomato broth",
+      "image_url": "https://images.unsplash.com/photo-1475090169767-40ed8d18f67d?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2799,
+      "prep_time_seconds": 1020,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "linguine",
+        "shrimp",
+        "mussels",
+        "calamari",
+        "roasted garlic tomato broth"
+      ],
+      "allergens": [
+        "shellfish",
+        "gluten"
+      ],
+      "dietary_tags": [
+        "contains-shellfish"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "b152b63f-d539-49c0-b193-b2b78c336685",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "7feed785-0b1b-42fb-9973-6300f7864cd5",
+      "category_name": "Pasta & Risotto",
+      "sku": "PAS003",
+      "name": "Spaghetti Carbonara",
+      "description": "Classic Roman pasta with pancetta, eggs, pecorino cheese, and black pepper",
+      "image_url": "https://images.unsplash.com/photo-1758157835961-5db4a033390b?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "price_cents": 1999,
+      "prep_time_seconds": 600,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "spaghetti",
+        "pancetta",
+        "egg yolk",
+        "pecorino romano",
+        "black pepper"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy",
+        "egg"
+      ],
+      "dietary_tags": [
+        "contains-pork"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "0dad679c-87e2-4621-8fbe-c6d270b9e09e",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "8b2145de-5ac6-40d2-b09e-0b75051f4bc6",
+      "category_name": "Desserts",
+      "sku": "DES005",
+      "name": "Gelato Trio",
+      "description": "Three scoops of house-made gelato with almond tuile and seasonal fruit",
+      "image_url": "http://localhost:3301/api/v1/assets/1761370813823-trio-colorful-ice-cream-vanilla-pods-frozen-dessert-white-background-decorated-two-chocolate-shavings-mint-68612708.webp",
+      "price_cents": 999,
+      "prep_time_seconds": 240,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "house gelato",
+        "almond tuile",
+        "seasonal fruit"
+      ],
+      "allergens": [
+        "dairy",
+        "tree-nut"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "9fbbe9b3-5ccb-431a-a20f-72cacac77ad4",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "8b2145de-5ac6-40d2-b09e-0b75051f4bc6",
+      "category_name": "Desserts",
+      "sku": "DES001",
+      "name": "Tiramisu",
+      "description": "Classic Italian dessert with espresso-soaked ladyfingers and mascarpone",
+      "image_url": "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 899,
+      "prep_time_seconds": 300,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "ladyfingers",
+        "espresso",
+        "mascarpone",
+        "cocoa"
+      ],
+      "allergens": [
+        "dairy",
+        "gluten",
+        "egg"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": true,
+      "notes": "Traditional recipe is brushed with coffee liqueur."
+    },
+    {
+      "menu_item_id": "c759efb3-b83b-47e6-b6c0-7fb068d0624a",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "8b2145de-5ac6-40d2-b09e-0b75051f4bc6",
+      "category_name": "Desserts",
+      "sku": "DES003",
+      "name": "Crème Brûlée",
+      "description": "Vanilla custard with caramelized sugar and fresh berries",
+      "image_url": "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 799,
+      "prep_time_seconds": 300,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "vanilla custard",
+        "cream",
+        "egg yolk",
+        "caramelized sugar"
+      ],
+      "allergens": [
+        "dairy",
+        "egg"
+      ],
+      "dietary_tags": [
+        "gluten-free"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "d1db3fe0-d25b-4153-a2c3-21c1cc2fdcdc",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "8b2145de-5ac6-40d2-b09e-0b75051f4bc6",
+      "category_name": "Desserts",
+      "sku": "DES002",
+      "name": "Chocolate Lava Cake",
+      "description": "Warm chocolate cake with molten center, served with vanilla ice cream",
+      "image_url": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 999,
+      "prep_time_seconds": 600,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "dark chocolate",
+        "butter",
+        "flour",
+        "eggs",
+        "vanilla ice cream"
+      ],
+      "allergens": [
+        "dairy",
+        "gluten",
+        "egg"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "e257cc26-7828-495a-b6ec-05c6f3c834f9",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "8b2145de-5ac6-40d2-b09e-0b75051f4bc6",
+      "category_name": "Desserts",
+      "sku": "DES004",
+      "name": "Pistachio Cannoli",
+      "description": "Crisp cannoli shells with sweet ricotta, pistachios, and candied orange peel",
+      "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 899,
+      "prep_time_seconds": 300,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "cannoli shells",
+        "ricotta",
+        "pistachios",
+        "candied orange peel"
+      ],
+      "allergens": [
+        "dairy",
+        "gluten",
+        "tree-nut"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "1d0e835a-d24d-472b-86f7-d5d0d89a16e6",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN003",
+      "name": "Chicken Marsala",
+      "description": "Pan-seared chicken breast with marsala wine sauce and wild mushrooms",
+      "image_url": "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2499,
+      "prep_time_seconds": 1200,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "chicken breast",
+        "marsala wine",
+        "mushrooms",
+        "butter"
+      ],
+      "allergens": [
+        "dairy"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": true
+    },
+    {
+      "menu_item_id": "444df689-0832-4134-96e4-5f03945586f5",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN005",
+      "name": "Braised Short Ribs",
+      "description": "Red-wine braised beef short ribs with parmesan polenta and roasted carrots",
+      "image_url": "https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 3499,
+      "prep_time_seconds": 2400,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "beef short ribs",
+        "red wine braise",
+        "parmesan polenta",
+        "roasted carrots"
+      ],
+      "allergens": [
+        "dairy",
+        "sulfites"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": true
+    },
+    {
+      "menu_item_id": "4ea870cd-a5e4-48f6-97ea-d87fe36e1164",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN004",
+      "name": "Rack of Lamb",
+      "description": "Herb-crusted rack of lamb with rosemary jus and seasonal vegetables",
+      "image_url": "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 3299,
+      "prep_time_seconds": 1800,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "lamb rack",
+        "herb crust",
+        "rosemary jus",
+        "seasonal vegetables"
+      ],
+      "allergens": [
+        "dairy"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": true,
+      "notes": "Jus is finished with red wine."
+    },
+    {
+      "menu_item_id": "9cd431c3-48be-459a-a325-574dad59174c",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN006",
+      "name": "Seared Scallops",
+      "description": "Day-boat scallops with saffron risotto, grilled asparagus, and citrus beurre blanc",
+      "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 3799,
+      "prep_time_seconds": 1500,
+      "is_available": true,
+      "spice_level": "none",
+      "key_ingredients": [
+        "day-boat scallops",
+        "saffron risotto",
+        "asparagus",
+        "citrus beurre blanc"
+      ],
+      "allergens": [
+        "shellfish",
+        "dairy"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "af477545-a928-47da-9ce9-dc258198fce3",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN007",
+      "name": "Eggplant Parmesan",
+      "description": "Crisp eggplant cutlets layered with basil marinara, mozzarella, and ricotta",
+      "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2299,
+      "prep_time_seconds": 1500,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "breaded eggplant",
+        "basil marinara",
+        "mozzarella",
+        "ricotta"
+      ],
+      "allergens": [
+        "gluten",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "vegetarian"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "e69547d9-5f05-4f8d-830e-986c4b6316d9",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN001",
+      "name": "Grilled Salmon",
+      "description": "Atlantic salmon with lemon herb butter, roasted vegetables, and wild rice",
+      "image_url": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 2899,
+      "prep_time_seconds": 1200,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "atlantic salmon",
+        "lemon herb butter",
+        "roasted vegetables",
+        "wild rice"
+      ],
+      "allergens": [
+        "fish",
+        "dairy"
+      ],
+      "dietary_tags": [
+        "gluten-free"
+      ],
+      "contains_alcohol": false
+    },
+    {
+      "menu_item_id": "f2ac373e-61e3-4d5e-b556-9f2dfeb592ee",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "ea3f709d-f667-472f-9986-10619d3645fc",
+      "category_name": "Main Courses",
+      "sku": "MAIN002",
+      "name": "Beef Tenderloin",
+      "description": "8oz center-cut beef tenderloin with red wine reduction and garlic mashed potatoes",
+      "image_url": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&h=600&fit=crop&crop=center",
+      "price_cents": 3899,
+      "prep_time_seconds": 1500,
+      "is_available": true,
+      "spice_level": "mild",
+      "key_ingredients": [
+        "beef tenderloin",
+        "red wine reduction",
+        "garlic mashed potatoes"
+      ],
+      "allergens": [
+        "dairy",
+        "sulfites"
+      ],
+      "dietary_tags": [],
+      "contains_alcohol": true
+    }
+  ]
+}
