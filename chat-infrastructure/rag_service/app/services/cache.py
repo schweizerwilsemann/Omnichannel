@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from redis.exceptions import ResponseError
-
 from redis.asyncio import Redis
 
 from ..config import get_settings
@@ -89,3 +88,12 @@ async def _eval_cache_script(
             await client.evalsha(_lua_sha, 1, key, *payload)
         else:
             raise
+
+
+async def clear_cached_answers(pattern: str = "rag:answer:*") -> int:
+    client = get_client()
+    deleted = 0
+    async for key in client.scan_iter(match=pattern):
+        await client.delete(key)
+        deleted += 1
+    return deleted

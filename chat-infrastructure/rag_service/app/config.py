@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     max_result_chunks: int = Field(5, alias="MAX_RESULT_CHUNKS")
     cache_ttl_seconds: int = Field(600, alias="CACHE_TTL_SECONDS")
     cors_allow_origins: str = Field("*", alias="CORS_ALLOW_ORIGINS")
+    admin_api_key: str = Field("", alias="RAG_ADMIN_API_KEY")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
