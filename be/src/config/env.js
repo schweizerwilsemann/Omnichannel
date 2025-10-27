@@ -51,6 +51,26 @@ const env = {
         secretKey: process.env.STRIPE_SECRET_KEY || '',
         mode: process.env.STRIPE_MODE || 'test'
     },
+    rag: {
+        baseUrl: process.env.RAG_SERVICE_URL || '',
+        adminKey: process.env.RAG_ADMIN_KEY || '',
+        autoSync: {
+            enabled: process.env.RAG_AUTO_SYNC_ENABLED === 'true',
+            intervalMinutes: Number(process.env.RAG_AUTO_SYNC_INTERVAL_MINUTES) || 60
+        }
+    },
+    menu: {
+        enrichmentPath: process.env.MENU_ENRICHMENT_PATH || ''
+    },
+    vector: {
+        qdrant: {
+            host: process.env.QDRANT_HOST || '',
+            port: Number(process.env.QDRANT_PORT) || 6333,
+            apiKey: process.env.QDRANT_API_KEY || '',
+            collection: process.env.QDRANT_COLLECTION || 'menu_similarity',
+            useTLS: process.env.QDRANT_USE_TLS === 'true'
+        }
+    },
     plans: {
         standardMonthly: process.env.STANDARD_MONTHLY,
         standardYearly: process.env.STANDARD_YEARLY
