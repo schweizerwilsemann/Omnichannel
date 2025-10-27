@@ -2,6 +2,8 @@ import { Op } from 'sequelize';
 import crypto from 'crypto';
 import models from '../models/index.js';
 import logger from '../../config/logger.js';
+import env from '../../config/env.js';
+import qdrantClient from '../../config/qdrant.js';
 
 const {
     sequelize,
@@ -24,6 +26,9 @@ const DEFAULT_OPTIONS = Object.freeze({
     syntheticComboWeight: 0.65,
     includeHistoricalOrders: true
 });
+
+const QDRANT_COLLECTION = env.vector?.qdrant?.collection || null;
+const HAS_VECTOR_SIMILARITY = Boolean(qdrantClient && QDRANT_COLLECTION);
 
 const clampDecimal = (value) => {
     if (!Number.isFinite(value)) {
@@ -876,4 +881,101 @@ export const getCartRecommendations = async (sessionToken, cartItemIds = [], opt
         cartItems: uniqueItems,
         recommendations
     };
+};
+
+const formatSimilarPayload = (payload = {}, score = 0) => {
+    const id = payload.menu_item_id || payload.id || null;
+    if (!id) {
+        return null;
+    }
+    const priceCents = Number.parseInt(payload.price_cents ?? payload.priceCents ?? 0, 10);
+    return {
+        id,
+        name: payload.name,
+        description: payload.description,
+        priceCents: Number.isNaN(priceCents) ? 0 : priceCents,
+        imageUrl: payload.image_url || payload.imageUrl || null,
+        category: payload.category_id
+            ? { id: payload.category_id, name: payload.category_name || null }
+            : null,
+        dietaryTags: Array.isArray(payload.dietary_tags) ? payload.dietary_tags : [],
+        allergens: Array.isArray(payload.allergens) ? payload.allergens : [],
+        spiceLevel: payload.spice_level || null,
+        containsAlcohol: Boolean(payload.contains_alcohol),
+        similarityScore: clampDecimal(score)
+    };
+};
+
+export const getSimilarMenuItems = async (sessionToken, menuItemId, options = {}) => {
+    if (!sessionToken) {
+        throw new Error('Session token is required');
+    }
+    if (!menuItemId) {
+        throw new Error('Menu item id is required');
+    }
+    if (!HAS_VECTOR_SIMILARITY) {
+        return { items: [], available: false };
+    }
+
+    const session = await GuestSession.findOne({
+        where: { sessionToken },
+        attributes: ['id', 'restaurantId', 'closedAt']
+    });
+
+    if (!session || session.closedAt) {
+        throw new Error('Session is not active');
+    }
+
+    try {
+        const limit = Math.min(Math.max(options.limit || 4, 1), 5);
+        const filter = {
+            must: [
+                {
+                    key: 'restaurant_id',
+                    match: { value: session.restaurantId }
+                }
+            ],
+            must_not: [
+                {
+                    key: 'menu_item_id',
+                    match: { value: menuItemId }
+                }
+            ]
+        };
+
+        if (Array.isArray(options.excludeMenuItemIds)) {
+            options.excludeMenuItemIds
+                .filter(Boolean)
+                .forEach((id) =>
+                    filter.must_not.push({
+                        key: 'menu_item_id',
+                        match: { value: id }
+                    })
+                );
+        }
+
+        const results = await qdrantClient.recommend(QDRANT_COLLECTION, {
+            positive: [menuItemId],
+            limit,
+            with_payload: true,
+            filter
+        });
+
+        const items = (results || [])
+            .map((hit) => formatSimilarPayload(hit.payload, hit.score))
+            .filter(Boolean)
+            .slice(0, limit);
+
+        return {
+            items,
+            available: true
+        };
+    } catch (error) {
+        logger.error('Failed to query similar menu items', {
+            message: error.message,
+            menuItemId,
+            sessionToken
+        });
+        return { items: [], available: HAS_VECTOR_SIMILARITY };
+    }
 };
