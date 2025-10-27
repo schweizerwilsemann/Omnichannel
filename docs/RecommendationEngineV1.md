@@ -173,3 +173,23 @@ Result: operators can judge whether “Pho → Spring Rolls” is accelerating o
 - Incorporate cost/margin metadata in the ranking logic (e.g., weight attach rate by contribution margin).
 
 For now, the system balances simplicity (pure Node/Sequelize) with enough observability (history table + UI trends) to make data‑driven menu tweaks.***
+
+---
+
+## 7. Menu Similarity Pipeline & Serving
+
+1. **Dataset** – `chat-infrastructure/rag_service/scripts/export_menu_items.py` + `augment_menu_items.py` generate `menu_items_enriched.json` with allergens, spice levels, and tags.
+2. **Pair generation** – `generate_similarity_pairs.py` turns enriched items into anchor/positive/negative triplets (matching shared tags/spice level).
+3. **Fine-tune encoder** – `train_similarity_model.py` runs Sentence Transformers + contrastive loss (MultipleNegativesRankingLoss or TripletLoss) and outputs `models/menu-similarity-model`.
+4. **Sync vectors** – `sync_menu_vectors.py` encodes every menu item, writes JSON for inspection, and upserts vectors into Qdrant (and Redis Stack when available). Qdrant payload keeps all menu metadata so downstream filters can enforce restaurant or allergen rules.
+
+### Backend hook
+
+- `.env` gains `QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_API_KEY`, `QDRANT_COLLECTION`, `QDRANT_USE_TLS`. When provided, `be/src/config/qdrant.js` creates a singleton client; if omitted the feature quietly disables itself.
+- `GET /customer/menu/similar?sessionToken=…&menuItemId=…` uses Qdrant’s `recommend` endpoint scoped to the same restaurant and returns items with `dietaryTags`, `allergens`, `spiceLevel`, and a `similarityScore` (max 5 results).
+
+### Frontend hook
+
+- `MenuPage` exposes a “Find similar” CTA on each card. Tapping it opens a modal that calls the new endpoint, lists recommended dishes (badges for tags/allergens), and lets guests add them straight to the cart.
+
+This hybrid setup lets Apriori keep driving checkout upsells while the vector model powers exploratory browsing and allergen-aware substitutions.
