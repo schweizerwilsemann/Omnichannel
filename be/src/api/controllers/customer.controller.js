@@ -22,7 +22,11 @@ import {
     disableAuthenticator,
     updateMembershipPin
 } from '../services/customer.service.js';
-import { getCartRecommendations as fetchCartRecommendations } from '../services/recommendation.service.js';
+import {
+    getCartRecommendations as fetchCartRecommendations,
+    getSimilarMenuItems as fetchSimilarMenuItems
+} from '../services/recommendation.service.js';
+import { searchMenuItems as semanticMenuSearch } from '../services/menuSearch.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
 import { registerCustomerOrderStream } from '../services/realtime.service.js';
@@ -87,6 +91,36 @@ export const getCartRecommendationsController = async (req, res) => {
     } catch (error) {
         logger.error('Failed to fetch cart recommendations', { message: error.message });
         return errorResponse(res, error.message || 'Unable to fetch recommendations', 400);
+    }
+};
+
+export const getSimilarMenuItemsController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const menuItemId = req.query.menuItemId;
+        const limit = Number.parseInt(req.query.limit, 10) || 4;
+
+        const result = await fetchSimilarMenuItems(sessionToken, menuItemId, { limit });
+
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to load similar menu items', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load similar items', 400);
+    }
+};
+
+export const searchMenuItemsController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const query = req.query.query;
+        const limit = Number.parseInt(req.query.limit, 10) || 6;
+
+        const result = await semanticMenuSearch(sessionToken, query, { limit });
+
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to search menu', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to search menu items', 400);
     }
 };
 
