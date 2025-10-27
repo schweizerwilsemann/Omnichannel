@@ -77,6 +77,12 @@ export const sessionTokenQuerySchema = Joi.object({
     sessionToken: uuidSchema.required()
 });
 
+export const similarMenuQuerySchema = Joi.object({
+    sessionToken: uuidSchema.required(),
+    menuItemId: uuidSchema.required(),
+    limit: Joi.number().integer().min(1).max(10).default(4)
+});
+
 export const placeOrderSchema = Joi.object({
     sessionToken: uuidSchema.required(),
     items: Joi.array()
@@ -235,4 +241,9 @@ export const cartRecommendationsQuerySchema = sessionTokenQuerySchema.keys({
         .default([])
         .optional(),
     limit: Joi.number().integer().min(1).max(12).default(5)
+});
+
+export const menuSearchQuerySchema = sessionTokenQuerySchema.keys({
+    query: Joi.string().min(3).max(200).required(),
+    limit: Joi.number().integer().min(1).max(12).default(6)
 });
