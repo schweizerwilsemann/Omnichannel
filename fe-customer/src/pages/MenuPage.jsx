@@ -4,8 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSession } from '../context/SessionContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
-import { fetchMenu, requestMembershipVerification, claimLoyaltyPoints } from '../services/session.js';
+import {
+    fetchMenu,
+    requestMembershipVerification,
+    claimLoyaltyPoints,
+    fetchSimilarMenuItems
+} from '../services/session.js';
 import MenuCategory from '../components/menu/MenuCategory.jsx';
+import MenuSearch from '../components/menu/MenuSearch.jsx';
 import resolveAssetUrl from '../utils/assets.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
@@ -37,6 +43,14 @@ const MenuPage = () => {
     const [membershipError, setMembershipError] = useState(null);
     const isMember = session?.membership?.status === 'MEMBER';
     const membershipStatus = session?.membership?.status || 'GUEST';
+    const [similarModal, setSimilarModal] = useState({
+        open: false,
+        baseItem: null,
+        items: [],
+        loading: false,
+        error: '',
+        available: true
+    });
 
     // Claim / loyalty UI state
     const [showClaimModal, setShowClaimModal] = useState(false);
@@ -230,6 +244,68 @@ const MenuPage = () => {
         }
     };
 
+    const closeSimilarModal = () => {
+        setSimilarModal((prev) => ({
+            ...prev,
+            open: false,
+            loading: false,
+            error: '',
+            items: []
+        }));
+    };
+
+    const handleViewSimilar = async (item) => {
+        if (!sessionToken) {
+            toast.error('Session expired. Please refresh the page.');
+            return;
+        }
+        setSimilarModal({
+            open: true,
+            baseItem: item,
+            items: [],
+            loading: true,
+            error: '',
+            available: true
+        });
+        try {
+            const response = await fetchSimilarMenuItems(sessionToken, item.id, 6);
+            const payload = response.data?.data || {};
+            const hasItems = Array.isArray(payload.items) && payload.items.length > 0;
+            setSimilarModal((prev) => ({
+                ...prev,
+                items: payload.items || [],
+                loading: false,
+                available: payload.available !== false,
+                error: hasItems
+                    ? ''
+                    : payload.available === false
+                      ? 'Similar dish search is not enabled yet.'
+                      : 'No similar dishes available right now.'
+            }));
+        } catch (error) {
+            const message = error.response?.data?.message || error.message || 'Unable to load similar dishes right now.';
+            setSimilarModal((prev) => ({
+                ...prev,
+                loading: false,
+                error: message
+            }));
+        }
+    };
+
+    const handleAddSimilarItem = (item) => {
+        if (!item?.id) {
+            return;
+        }
+        addItem({
+            id: item.id,
+            name: item.name,
+            priceCents: item.priceCents,
+            description: item.description,
+            imageUrl: item.imageUrl
+        });
+        toast.success(`${item.name} added to your cart.`);
+    };
+
     const handleAddToCart = (menuItem) => {
         addItem(menuItem);
         toast.success(`${menuItem.name} added to cart`, { toastId: `add-${menuItem.id}` });
@@ -296,6 +372,10 @@ const MenuPage = () => {
                         ))}
                     </div>
                 </div>
+            )}
+
+            {sessionToken && (
+                <MenuSearch sessionToken={sessionToken} onAdd={handleAddToCart} formatPrice={formatPrice} />
             )}
 
             {sessionToken && (
@@ -490,7 +570,12 @@ const MenuPage = () => {
                     </div>
                 ) : (
                     activeCategories.map((category) => (
-                        <MenuCategory key={category.id} category={category} onAdd={handleAddToCart} />
+                        <MenuCategory
+                            key={category.id}
+                            category={category}
+                            onAdd={handleAddToCart}
+                            onShowSimilar={handleViewSimilar}
+                        />
                     ))
                 )}
             </section>
@@ -504,6 +589,64 @@ const MenuPage = () => {
                     <span className="menu-floating-cart__cta">Review & checkout</span>
                 </button>
             )}
+            <Modal show={similarModal.open} onHide={closeSimilarModal} centered size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        Similar to <span className="text-primary">{similarModal.baseItem?.name || 'this dish'}</span>
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {similarModal.loading ? (
+                        <div className="d-flex justify-content-center py-4">
+                            <Spinner animation="border" />
+                        </div>
+                    ) : similarModal.error ? (
+                        <Alert variant="light" className="mb-0">
+                            {similarModal.error}
+                        </Alert>
+                    ) : (
+                        <div className="similar-modal__list">
+                            {similarModal.items.map((item) => (
+                                <div key={item.id} className="similar-item">
+                                    <div className="similar-item__info">
+                                        <h5 className="mb-1">{item.name}</h5>
+                                        {item.description && (
+                                            <p className="text-muted small mb-2">{item.description}</p>
+                                        )}
+                                        <div className="d-flex flex-wrap gap-2">
+                                            {item.dietaryTags?.map((tag) => (
+                                                <Badge key={tag} bg="light" text="dark">
+                                                    {tag.replace(/-/g, ' ')}
+                                                </Badge>
+                                            ))}
+                                            {item.spiceLevel && (
+                                                <Badge bg="secondary" className="text-uppercase">
+                                                    {item.spiceLevel}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="similar-item__cta">
+                                        <span className="fw-semibold">{formatPrice(item.priceCents)}</span>
+                                        <small className="text-muted">
+                                            {item.similarityScore
+                                                ? `Match ${(item.similarityScore * 100).toFixed(0)}%`
+                                                : 'Curated match'}
+                                        </small>
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={() => handleAddSimilarItem(item)}
+                                        >
+                                            Add
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </Modal.Body>
+            </Modal>
             <Modal show={showMembershipModal} onHide={handleMembershipClose} centered>
                 <Form onSubmit={handleMembershipSubmit}>
                     <Modal.Header closeButton>
