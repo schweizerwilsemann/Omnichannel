@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import models from '../models/index.js';
 import { getDashboardSummary } from '../services/dashboard.service.js';
 import { listRecommendationAnalytics } from '../services/recommendation.service.js';
+import { getRagSyncStatus, syncRagKnowledge, flushRagCache } from '../services/ragSync.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
 import { notifySessionClosed } from '../services/realtime.service.js';
@@ -170,11 +171,49 @@ export const listMenuRecommendationsController = async (req, res) => {
     }
 };
 
+export const getKnowledgeStatusController = async (_req, res) => {
+    try {
+        const status = getRagSyncStatus();
+        return successResponse(res, status, 200);
+    } catch (error) {
+        logger.error('Failed to fetch knowledge sync status', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to load status', 400);
+    }
+};
+
+export const triggerKnowledgeSyncController = async (req, res) => {
+    try {
+        const restaurantIds = Array.isArray(req.user?.restaurantIds) ? req.user.restaurantIds : [];
+        const { flushCache = true } = req.body || {};
+        const summary = await syncRagKnowledge({
+            restaurantIds,
+            flushCache: Boolean(flushCache)
+        });
+        return successResponse(res, summary, 202);
+    } catch (error) {
+        logger.error('Knowledge sync failed', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to sync knowledge', error.message?.includes('running') ? 409 : 400);
+    }
+};
+
+export const flushKnowledgeCacheController = async (_req, res) => {
+    try {
+        const result = await flushRagCache();
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to flush knowledge cache', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to flush cache', 400);
+    }
+};
+
 export default {
     listActiveTablesController,
     closeGuestSessionController,
     getDashboardOverviewController,
-    listMenuRecommendationsController
+    listMenuRecommendationsController,
+    getKnowledgeStatusController,
+    triggerKnowledgeSyncController,
+    flushKnowledgeCacheController
 };
 
 
