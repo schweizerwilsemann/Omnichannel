@@ -24,7 +24,9 @@ import {
     claimVoucherByTokenController,
     processPaymentController,
     getPaymentIntentController,
-    getCartRecommendationsController
+    getCartRecommendationsController,
+    getSimilarMenuItemsController,
+    searchMenuItemsController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -43,7 +45,9 @@ import {
     voucherClaimSchema,
     voucherEmailClaimSchema,
     paymentIntentParamSchema,
-    cartRecommendationsQuerySchema
+    cartRecommendationsQuerySchema,
+    similarMenuQuerySchema,
+    menuSearchQuerySchema
 } from '../validations/customer.validation.js';
 
 const router = Router();
@@ -62,6 +66,16 @@ router.post('/profile/authenticator/verify', validationMiddleware(authenticatorV
 router.delete('/profile/authenticator', validationMiddleware(sessionTokenQuerySchema, 'query'), disableAuthenticatorController);
 router.post('/profile/pin', validationMiddleware(pinUpdateSchema), updateMembershipPinController);
 router.get('/menu', validationMiddleware(sessionTokenQuerySchema, 'query'), getMenuController);
+router.get(
+    '/menu/similar',
+    validationMiddleware(similarMenuQuerySchema, 'query'),
+    getSimilarMenuItemsController
+);
+router.get(
+    '/menu/search',
+    validationMiddleware(menuSearchQuerySchema, 'query'),
+    searchMenuItemsController
+);
 router.get('/promotions', validationMiddleware(sessionTokenQuerySchema, 'query'), listPromotionsController);
 router.get('/vouchers', validationMiddleware(sessionTokenQuerySchema, 'query'), listCustomerVouchersController);
 router.post('/vouchers/claim', validationMiddleware(voucherClaimSchema), claimVoucherController);

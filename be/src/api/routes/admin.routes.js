@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import authenticateAdmin from '../middlewares/auth.middleware.js';
+import authenticateAdmin, { ownerOnly } from '../middlewares/auth.middleware.js';
 import validationMiddleware from '../middlewares/validation.middleware.js';
 import {
     closeGuestSessionController,
     listActiveTablesController,
     getDashboardOverviewController,
-    listMenuRecommendationsController
+    listMenuRecommendationsController,
+    getKnowledgeStatusController,
+    triggerKnowledgeSyncController,
+    flushKnowledgeCacheController
 } from '../controllers/admin.controller.js';
-import { recommendationAnalyticsQuerySchema } from '../validations/admin.validation.js';
+import { recommendationAnalyticsQuerySchema, ragSyncRequestSchema } from '../validations/admin.validation.js';
 
 const router = Router();
 
@@ -20,5 +23,13 @@ router.get(
 );
 router.get('/tables/active', authenticateAdmin(), listActiveTablesController);
 router.post('/sessions/:sessionId/close', authenticateAdmin(), closeGuestSessionController);
+router.get('/knowledge/status', ownerOnly, getKnowledgeStatusController);
+router.post(
+    '/knowledge/sync',
+    ownerOnly,
+    validationMiddleware(ragSyncRequestSchema),
+    triggerKnowledgeSyncController
+);
+router.post('/knowledge/cache/flush', ownerOnly, flushKnowledgeCacheController);
 
 export default router;
