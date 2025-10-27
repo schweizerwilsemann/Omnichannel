@@ -251,14 +251,205 @@ export const up = async () => {
             priceCents: 1299,
             prepTimeSeconds: 180,
             imageUrl: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Appetizers
+        {
+            categoryId: categoryMap['Appetizers'],
+            sku: 'APP004',
+            name: 'Charcuterie Board',
+            description: 'Artisanal cured meats, aged cheeses, fig jam, and grilled focaccia',
+            priceCents: 1899,
+            prepTimeSeconds: 600,
+            imageUrl: 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Appetizers'],
+            sku: 'APP005',
+            name: 'Stuffed Portobello',
+            description: 'Roasted portobello mushroom filled with ricotta, spinach, and pine nuts',
+            priceCents: 1499,
+            prepTimeSeconds: 900,
+            imageUrl: 'https://images.unsplash.com/photo-1447078806655-40579c2520d6?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Soups & Salads
+        {
+            categoryId: categoryMap['Soups & Salads'],
+            sku: 'SOU002',
+            name: 'Roasted Tomato Soup',
+            description: 'Fire-roasted tomatoes blended with basil cream and served with grilled sourdough',
+            priceCents: 1199,
+            prepTimeSeconds: 540,
+            imageUrl: 'https://images.unsplash.com/photo-1447078806655-40579c2520d6?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Soups & Salads'],
+            sku: 'SAL003',
+            name: 'Harvest Quinoa Salad',
+            description: 'Tri-color quinoa, roasted squash, cranberries, toasted pepitas, and citrus vinaigrette',
+            priceCents: 1499,
+            prepTimeSeconds: 420,
+            imageUrl: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Main Courses
+        {
+            categoryId: categoryMap['Main Courses'],
+            sku: 'MAIN005',
+            name: 'Braised Short Ribs',
+            description: 'Red-wine braised beef short ribs with parmesan polenta and roasted carrots',
+            priceCents: 3499,
+            prepTimeSeconds: 2400,
+            imageUrl: 'https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Main Courses'],
+            sku: 'MAIN006',
+            name: 'Seared Scallops',
+            description: 'Day-boat scallops with saffron risotto, grilled asparagus, and citrus beurre blanc',
+            priceCents: 3799,
+            prepTimeSeconds: 1500,
+            imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Main Courses'],
+            sku: 'MAIN007',
+            name: 'Eggplant Parmesan',
+            description: 'Crisp eggplant cutlets layered with basil marinara, mozzarella, and ricotta',
+            priceCents: 2299,
+            prepTimeSeconds: 1500,
+            imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Pasta
+        {
+            categoryId: categoryMap['Pasta & Risotto'],
+            sku: 'PAS004',
+            name: 'Pesto Gnocchi',
+            description: 'Hand-made potato gnocchi tossed in basil pesto, blistered cherry tomatoes, and pecorino',
+            priceCents: 2099,
+            prepTimeSeconds: 780,
+            imageUrl: 'https://images.unsplash.com/photo-1475090169767-40ed8d18f67d?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Pasta & Risotto'],
+            sku: 'PAS005',
+            name: 'Seafood Linguine',
+            description: 'Linguine with shrimp, mussels, calamari, and roasted garlic-tomato broth',
+            priceCents: 2799,
+            prepTimeSeconds: 1020,
+            imageUrl: 'https://images.unsplash.com/photo-1475090169767-40ed8d18f67d?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Pizza
+        {
+            categoryId: categoryMap['Pizza'],
+            sku: 'PIZ004',
+            name: 'Diavola Pizza',
+            description: 'Spicy soppressata, mozzarella, chili oil, and charred peppers on a blistered crust',
+            priceCents: 2099,
+            prepTimeSeconds: 900,
+            imageUrl: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Pizza'],
+            sku: 'PIZ005',
+            name: 'Wild Mushroom Truffle Pizza',
+            description: 'White sauce, roasted wild mushrooms, taleggio, arugula, and truffle oil',
+            priceCents: 2399,
+            prepTimeSeconds: 900,
+            imageUrl: 'https://images.unsplash.com/photo-1542281286-9e0a16bb7366?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Desserts
+        {
+            categoryId: categoryMap['Desserts'],
+            sku: 'DES004',
+            name: 'Pistachio Cannoli',
+            description: 'Crisp cannoli shells with sweet ricotta, pistachios, and candied orange peel',
+            priceCents: 899,
+            prepTimeSeconds: 300,
+            imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Desserts'],
+            sku: 'DES005',
+            name: 'Gelato Trio',
+            description: 'Three scoops of house-made gelato with almond tuile and seasonal fruit',
+            priceCents: 999,
+            prepTimeSeconds: 240,
+            imageUrl: 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Beverages
+        {
+            categoryId: categoryMap['Beverages'],
+            sku: 'BEV004',
+            name: 'Cold Brew Tonic',
+            description: 'Slow-steeped cold brew coffee poured over citrus tonic and a twist of grapefruit',
+            priceCents: 599,
+            prepTimeSeconds: 120,
+            imageUrl: 'https://images.unsplash.com/photo-1464306076886-da185f6a9d12?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Beverages'],
+            sku: 'BEV005',
+            name: 'Yuzu Sparkler',
+            description: 'Yuzu puree, mint, sparkling water, and a hint of agave',
+            priceCents: 699,
+            prepTimeSeconds: 180,
+            imageUrl: 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Beverages'],
+            sku: 'BEV006',
+            name: 'Matcha Oat Latte',
+            description: 'Ceremonial grade matcha whisked with steamed oat milk and wildflower honey',
+            priceCents: 649,
+            prepTimeSeconds: 180,
+            imageUrl: 'https://images.unsplash.com/photo-1505253216365-512a012d0185?w=800&h=600&fit=crop&crop=center'
+        },
+
+        // Additional Wine & Cocktails
+        {
+            categoryId: categoryMap['Wine & Cocktails'],
+            sku: 'COCK002',
+            name: 'Aperol Spritz',
+            description: 'Aperol, prosecco, soda, and orange slice served over ice',
+            priceCents: 1199,
+            prepTimeSeconds: 120,
+            imageUrl: 'https://images.unsplash.com/photo-1510626176961-4b57d4fbad03?w=800&h=600&fit=crop&crop=center'
+        },
+        {
+            categoryId: categoryMap['Wine & Cocktails'],
+            sku: 'COCK003',
+            name: 'Espresso Martini',
+            description: 'Vodka, espresso, coffee liqueur, and vanilla syrup shaken to a silky foam',
+            priceCents: 1399,
+            prepTimeSeconds: 240,
+            imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop&crop=center'
         }
     ];
 
+    const existingItems = await MenuItem.findAll({ attributes: ['sku'], raw: true });
+    const existingSkuSet = new Set(existingItems.map(item => item.sku));
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
     for (const itemData of menuItems) {
+        if (existingSkuSet.has(itemData.sku)) {
+            console.log(`⚠️  Skipping existing SKU ${itemData.sku}`);
+            skippedCount += 1;
+            continue;
+        }
+
         await MenuItem.create(itemData);
+        createdCount += 1;
     }
 
-    console.log('✅ Menu items seeded successfully');
+    console.log(`✅ Menu items seeded successfully (created: ${createdCount}, skipped: ${skippedCount})`);
 };
 
 export const down = async () => {
