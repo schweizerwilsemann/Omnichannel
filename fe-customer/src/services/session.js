@@ -25,6 +25,23 @@ export const fetchCartRecommendations = (sessionToken, items = [], limit = 5) =>
             limit
         }
     });
+export const fetchSimilarMenuItems = (sessionToken, menuItemId, limit = 4) =>
+    api.get('/customer/menu/similar', {
+        params: {
+            sessionToken,
+            menuItemId,
+            limit
+        }
+    });
+
+export const searchMenuItems = (sessionToken, query, limit = 6) =>
+    api.get('/customer/menu/search', {
+        params: {
+            sessionToken,
+            query,
+            limit
+        }
+    });
 
 export const openOrdersStream = (sessionToken) => {
     if (!sessionToken) {
