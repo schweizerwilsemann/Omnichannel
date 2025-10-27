@@ -4,6 +4,7 @@ import sequelize from './config/database.js';
 import logger from './config/logger.js';
 import './api/models/index.js';
 import { initializeStorage } from './api/services/storage.service.js';
+import { scheduleRagSyncJob } from './api/services/ragSync.service.js';
 
 const app = createExpressApp();
 
@@ -20,6 +21,8 @@ const start = async () => {
         app.listen(env.app.port, () => {
             logger.info(`Server listening on port ${env.app.port}`);
         });
+
+        scheduleRagSyncJob();
     } catch (error) {
         logger.error('Failed to start server', { message: error.message });
         process.exit(1);
