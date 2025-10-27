@@ -9,3 +9,7 @@ export const recommendationAnalyticsQuerySchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     trendWindowDays: Joi.number().integer().min(7).max(120).default(30)
 });
+
+export const ragSyncRequestSchema = Joi.object({
+    flushCache: Joi.boolean().default(true)
+});
