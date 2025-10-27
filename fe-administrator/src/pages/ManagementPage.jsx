@@ -17,13 +17,15 @@ import { uploadAsset as uploadAssetFile } from '../services/asset.service.js';
 import appConfig from '../config/appConfig.js';
 import PromotionsPanel from '../components/promotions/PromotionsPanel.jsx';
 import RecommendationInsightsPanel from '../components/recommendations/RecommendationInsightsPanel.jsx';
+import KnowledgeSyncPanel from '../components/knowledge/KnowledgeSyncPanel.jsx';
 
 const MANAGEMENT_TABS = Object.freeze({
     MENU: 'menu',
     CUSTOMERS: 'customers',
     TABLES: 'tables',
     PROMOTIONS: 'promotions',
-    RECOMMENDATIONS: 'recommendations'
+    RECOMMENDATIONS: 'recommendations',
+    KNOWLEDGE: 'knowledge'
 });
 
 const TABLE_STATUS_VARIANTS = Object.freeze({
@@ -1369,6 +1371,11 @@ const ManagementPage = () => {
             </Tab>
             <Tab eventKey={MANAGEMENT_TABS.RECOMMENDATIONS} title="Recommendations">
                 <RecommendationInsightsPanel />
+            </Tab>
+            <Tab eventKey={MANAGEMENT_TABS.KNOWLEDGE} title="AI Assistant">
+                <div className="pt-4">
+                    <KnowledgeSyncPanel />
+                </div>
             </Tab>
         </Tabs>
             </div>
