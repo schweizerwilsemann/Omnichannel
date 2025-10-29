@@ -69,6 +69,10 @@ const env = {
             apiKey: process.env.QDRANT_API_KEY || '',
             collection: process.env.QDRANT_COLLECTION || 'menu_similarity',
             useTLS: process.env.QDRANT_USE_TLS === 'true'
+        },
+        embedding: {
+            baseUrl: process.env.EMBEDDING_SERVICE_URL || '',
+            apiKey: process.env.EMBEDDING_SERVICE_API_KEY || ''
         }
     },
     plans: {

@@ -27,6 +27,9 @@ import voucherTierModel from './voucherTier.model.js';
 import customerVoucherModel from './customerVoucher.model.js';
 import menuRecommendationModel from './menuRecommendation.model.js';
 import menuRecommendationHistoryModel from './menuRecommendationHistory.model.js';
+import menuQueryLogModel from './menuQueryLog.model.js';
+import menuQueryCandidateModel from './menuQueryCandidate.model.js';
+import menuQueryClarificationModel from './menuQueryClarification.model.js';
 import setupAssociations from './associations.js';
 
 const models = {
@@ -58,7 +61,10 @@ const models = {
     VoucherTier: voucherTierModel(sequelize),
     CustomerVoucher: customerVoucherModel(sequelize),
     MenuRecommendation: menuRecommendationModel(sequelize),
-    MenuRecommendationHistory: menuRecommendationHistoryModel(sequelize)
+    MenuRecommendationHistory: menuRecommendationHistoryModel(sequelize),
+    MenuQueryLog: menuQueryLogModel(sequelize),
+    MenuQueryCandidate: menuQueryCandidateModel(sequelize),
+    MenuQueryClarification: menuQueryClarificationModel(sequelize)
 };
 
 setupAssociations(models);

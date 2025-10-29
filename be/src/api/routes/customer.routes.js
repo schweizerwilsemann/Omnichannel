@@ -26,7 +26,8 @@ import {
     getPaymentIntentController,
     getCartRecommendationsController,
     getSimilarMenuItemsController,
-    searchMenuItemsController
+    searchMenuItemsController,
+    clarifyMenuSearchController
 } from '../controllers/customer.controller.js';
 import {
     startSessionSchema,
@@ -47,7 +48,8 @@ import {
     paymentIntentParamSchema,
     cartRecommendationsQuerySchema,
     similarMenuQuerySchema,
-    menuSearchQuerySchema
+    menuSearchQuerySchema,
+    menuSearchClarifySchema
 } from '../validations/customer.validation.js';
 
 const router = Router();
@@ -75,6 +77,11 @@ router.get(
     '/menu/search',
     validationMiddleware(menuSearchQuerySchema, 'query'),
     searchMenuItemsController
+);
+router.post(
+    '/menu/search/clarify',
+    validationMiddleware(menuSearchClarifySchema),
+    clarifyMenuSearchController
 );
 router.get('/promotions', validationMiddleware(sessionTokenQuerySchema, 'query'), listPromotionsController);
 router.get('/vouchers', validationMiddleware(sessionTokenQuerySchema, 'query'), listCustomerVouchersController);

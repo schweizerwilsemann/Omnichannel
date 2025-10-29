@@ -26,7 +26,10 @@ export const TABLES = {
     VOUCHER_TIERS: 'voucher_tiers',
     CUSTOMER_VOUCHERS: 'customer_vouchers',
     MENU_RECOMMENDATIONS: 'menu_recommendations',
-    MENU_RECOMMENDATION_HISTORY: 'menu_recommendation_history'
+    MENU_RECOMMENDATION_HISTORY: 'menu_recommendation_history',
+    MENU_QUERY_LOGS: 'menu_query_logs',
+    MENU_QUERY_CANDIDATES: 'menu_query_candidates',
+    MENU_QUERY_CLARIFICATIONS: 'menu_query_clarifications'
 };
 
 export const USER_ROLES = Object.freeze({ OWNER: 'OWNER', MANAGER: 'MANAGER' });
@@ -100,5 +103,12 @@ export const DISCOUNT_TYPES = Object.freeze({
 
 export const AUTH_CHALLENGE_TYPES = Object.freeze({
     TOTP: 'TOTP'
+});
+
+export const MENU_QUERY_RESOLUTION_STATUS = Object.freeze({
+    AUTO: 'AUTO',
+    NEEDS_CLARIFICATION: 'NEEDS_CLARIFICATION',
+    CLARIFIED: 'CLARIFIED',
+    FALLBACK: 'FALLBACK'
 });
 

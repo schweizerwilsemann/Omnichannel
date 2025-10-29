@@ -247,3 +247,10 @@ export const menuSearchQuerySchema = sessionTokenQuerySchema.keys({
     query: Joi.string().min(3).max(200).required(),
     limit: Joi.number().integer().min(1).max(12).default(6)
 });
+
+export const menuSearchClarifySchema = Joi.object({
+    sessionToken: uuidSchema.required(),
+    clarificationId: uuidSchema.required(),
+    answer: Joi.string().min(2).max(200).required(),
+    limit: Joi.number().integer().min(1).max(12).default(6)
+});

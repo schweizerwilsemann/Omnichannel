@@ -26,7 +26,7 @@ import {
     getCartRecommendations as fetchCartRecommendations,
     getSimilarMenuItems as fetchSimilarMenuItems
 } from '../services/recommendation.service.js';
-import { searchMenuItems as semanticMenuSearch } from '../services/menuSearch.service.js';
+import { searchMenuItems as semanticMenuSearch, clarifyMenuSearch as resolveMenuClarification } from '../services/menuSearch.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../../config/logger.js';
 import { registerCustomerOrderStream } from '../services/realtime.service.js';
@@ -121,6 +121,18 @@ export const searchMenuItemsController = async (req, res) => {
     } catch (error) {
         logger.error('Failed to search menu', { message: error.message });
         return errorResponse(res, error.message || 'Unable to search menu items', 400);
+    }
+};
+
+export const clarifyMenuSearchController = async (req, res) => {
+    try {
+        const sessionToken = extractSessionToken(req);
+        const { clarificationId, answer, limit } = req.body;
+        const result = await resolveMenuClarification(sessionToken, clarificationId, answer, { limit });
+        return successResponse(res, result, 200);
+    } catch (error) {
+        logger.error('Failed to clarify menu search', { message: error.message });
+        return errorResponse(res, error.message || 'Unable to clarify menu search', 400);
     }
 };
 
