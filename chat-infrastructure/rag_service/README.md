@@ -13,6 +13,7 @@ FastAPI microservice that powers a restaurant FAQ retrieval-augmented generation
 | ------ | ----------------- | ------------------------------------------------ |
 | POST   | `/rag/ingest`     | Ingest restaurant FAQ or menu documents. (admin) |
 | POST   | `/rag/query`      | Retrieve + generate an answer for a prompt.      |
+| POST   | `/rag/embed`      | Return raw embeddings for arbitrary texts. (admin)|
 | POST   | `/rag/cache/flush`| Purge cached answers from Redis. (admin)         |
 | GET    | `/rag/health`     | Service, Qdrant, Redis connectivity check.       |
 
@@ -43,6 +44,12 @@ python scripts/seed_dummy.py
 curl -X POST http://localhost:8000/rag/query \
   -H "Content-Type: application/json" \
   -d '{"question":"What are the weekday hours for Pho 24?", "restaurant_id":"pho-24"}'
+
+# get embeddings for ad-hoc texts (requires admin key if configured)
+curl -X POST http://localhost:8000/rag/embed \
+  -H "Content-Type: application/json" \
+  -H "x-rag-admin-key: $RAG_ADMIN_KEY" \
+  -d '{"texts":["spicy vegan noodles","refreshing citrus mocktail"]}'
 ```
 
 ### Integration Notes
@@ -89,12 +96,14 @@ The service automatically creates the Qdrant collection (`restaurant-faq`) if it
    ```bash
    python scripts/sync_menu_vectors.py \
      --input data/menu_items_enriched.json \
-     --model-path models/menu-similarity-model \
-     --json-output data/menu_vectors.json \
+     --embed-endpoint http://localhost:8081/rag/embed \
+     --embed-key rag_admin_secret_key \
      --qdrant-host localhost --qdrant-port 6333 --qdrant-collection menu_similarity \
-     --redis-host localhost --redis-prefix menu: --redis-index idx:menu-similarity
+     --qdrant-recreate
    ```
 
-   Flags are optional—omit `--redis-host` or `--qdrant-host` if you only need JSON export. Use `--qdrant-recreate` / `--redis-recreate` when you want to rebuild the vector collections from scratch.
+   - If you prefer to embed locally with a sentence-transformer, keep using `--model-path <hf-model>` instead of `--embed-endpoint`.
+   - `--redis-*` arguments are still available when you need to populate Redis in addition to Qdrant.
+   - Use `--qdrant-recreate` / `--redis-recreate` to rebuild the collections from scratch.
 
 These scripts make it easy to produce a semantic “similar dishes” encoder that the backend can query to recommend substitutes (filtering by allergens/tags stored in the payload).

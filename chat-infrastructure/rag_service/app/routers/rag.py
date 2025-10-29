@@ -2,23 +2,24 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends
 
-from ..schemas import HealthResponse, IngestRequest, RagQueryRequest, RagQueryResponse
+from ..schemas import (
+    EmbedRequest,
+    EmbedResponse,
+    HealthResponse,
+    IngestRequest,
+    RagQueryRequest,
+    RagQueryResponse,
+)
 from ..services.cache import clear_cached_answers, get_client as get_redis_client
+from ..services.embedding import embed_texts
 from ..services.ingest import ingest_documents
 from ..services.query import answer_question
 from ..services.vectorstore import get_client as get_qdrant_client
-from ..config import get_settings
+from .dependencies import require_admin_key
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
-
-
-def require_admin_key(x_rag_admin_key: str | None = Header(default=None)) -> None:
-    settings = get_settings()
-    key = settings.admin_api_key.strip()
-    if key and x_rag_admin_key != key:
-        raise HTTPException(status_code=401, detail="Missing or invalid admin key")
 
 
 @router.post("/ingest", dependencies=[Depends(require_admin_key)])
@@ -37,6 +38,12 @@ async def query(request: RagQueryRequest) -> RagQueryResponse:
 async def flush_cache() -> dict[str, Any]:
     deleted = await clear_cached_answers()
     return {"deleted": deleted}
+
+
+@router.post("/embed", dependencies=[Depends(require_admin_key)], response_model=EmbedResponse)
+async def embed(request: EmbedRequest) -> EmbedResponse:
+    embeddings = await embed_texts(request.texts)
+    return EmbedResponse(embeddings=embeddings)
 
 
 @router.get("/health", response_model=HealthResponse)

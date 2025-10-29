@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(600, alias="CACHE_TTL_SECONDS")
     cors_allow_origins: str = Field("*", alias="CORS_ALLOW_ORIGINS")
     admin_api_key: str = Field("", alias="RAG_ADMIN_API_KEY")
+    db_uri: str | None = Field(default=None, alias="DB_URI")
+    db_host: str | None = Field(default=None, alias="DB_HOST")
+    db_port: int | None = Field(default=None, alias="DB_PORT")
+    db_name: str | None = Field(default=None, alias="DB_NAME")
+    db_user: str | None = Field(default=None, alias="DB_USER")
+    db_password: str | None = Field(default=None, alias="DB_PASSWORD")
+    db_dialect: str | None = Field(default=None, alias="DB_DIALECT")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -46,3 +47,34 @@ class HealthResponse(BaseModel):
     service: str
     qdrant: str
     redis: str
+
+
+class EmbedRequest(BaseModel):
+    texts: List[str]
+
+
+class EmbedResponse(BaseModel):
+    embeddings: List[List[float]]
+
+
+class ClarificationRecord(BaseModel):
+    clarification_id: str = Field(...)
+    query_time: datetime
+    raw_query: str
+    normalized_query: Optional[str] = None
+    tokens: Any = None
+    intents: Any = None
+    ambiguity_score: Optional[float] = None
+    query_metadata: Any = None
+    question_text: str
+    clarification_metadata: Any = None
+    user_reply: str
+    resolved_intent: Optional[str] = None
+    resolution_status: str
+    resolved_item_id: Optional[str] = None
+    resolved_item_name: Optional[str] = None
+
+
+class ClarificationResponse(BaseModel):
+    count: int
+    items: List[ClarificationRecord]
