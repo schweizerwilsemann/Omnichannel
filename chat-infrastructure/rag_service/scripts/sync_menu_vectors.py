@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from qdrant_client import QdrantClient, models
 import redis
+import requests
+from qdrant_client import QdrantClient, models
 from sentence_transformers import SentenceTransformer
 
 
@@ -39,7 +40,33 @@ def canonical_text(item: Dict[str, Any]) -> str:
     return " ".join(pieces)
 
 
-def encode_items(model: SentenceTransformer, items: List[Dict[str, Any]], batch_size: int) -> List[Dict[str, Any]]:
+def encode_with_service(endpoint: str, api_key: Optional[str], items: List[Dict[str, Any]], batch_size: int) -> List[Dict[str, Any]]:
+    payloads: List[Dict[str, Any]] = []
+    texts = [canonical_text(item) for item in items]
+
+    for start in range(0, len(texts), batch_size):
+        chunk = texts[start : start + batch_size]
+        response = requests.post(
+            endpoint,
+            headers={
+                "Content-Type": "application/json",
+                **({"x-rag-admin-key": api_key} if api_key else {}),
+            },
+            json={"texts": chunk},
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+        embeddings = data.get("embeddings", [])
+        if len(embeddings) != len(chunk):
+            raise RuntimeError("Embedding service returned mismatched vector count")
+        for item, vector in zip(items[start : start + batch_size], embeddings):
+            payloads.append({"item": item, "vector": np.array(vector, dtype=np.float32)})
+    return payloads
+
+
+def encode_with_model(model_name: str, items: List[Dict[str, Any]], batch_size: int) -> List[Dict[str, Any]]:
+    model = SentenceTransformer(model_name)
     texts = [canonical_text(item) for item in items]
     vectors = model.encode(texts, batch_size=batch_size, normalize_embeddings=True)
     payloads = []
@@ -165,7 +192,9 @@ def sync_redis(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Encode menu items with a fine-tuned model and sync to vector stores.")
     parser.add_argument("--input", required=True, help="Path to menu_items_enriched.json")
-    parser.add_argument("--model-path", required=True, help="Directory or HF model name for sentence transformer")
+    parser.add_argument("--model-path", help="Directory or HF model name for sentence transformer")
+    parser.add_argument("--embed-endpoint", help="HTTP endpoint for embedding service (e.g. http://localhost:8081/rag/embed)")
+    parser.add_argument("--embed-key", help="Optional admin key/header for embedding service")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--json-output", help="Optional path to dump embeddings JSON")
 
@@ -193,8 +222,12 @@ def main() -> None:
     if not items:
         raise SystemExit("No items in input.")
 
-    model = SentenceTransformer(args.model_path)
-    payloads = encode_items(model, items, args.batch_size)
+    if args.embed_endpoint:
+        payloads = encode_with_service(args.embed_endpoint, args.embed_key, items, args.batch_size)
+    elif args.model_path:
+        payloads = encode_with_model(args.model_path, items, args.batch_size)
+    else:
+        raise SystemExit("Either --embed-endpoint or --model-path must be provided.")
 
     if args.json_output:
         write_json(payloads, Path(args.json_output))
