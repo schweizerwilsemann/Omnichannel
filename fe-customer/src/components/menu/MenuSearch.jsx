@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
-import { searchMenuItems } from '../../services/session.js';
+import { searchMenuItems, clarifyMenuSearch } from '../../services/session.js';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=600&h=400&fit=crop&crop=center';
 const SUGGESTIONS = [
@@ -18,30 +18,83 @@ const MenuSearch = ({ sessionToken, onAdd, formatPrice }) => {
     const [available, setAvailable] = useState(true);
     const [lastQuery, setLastQuery] = useState('');
     const [searched, setSearched] = useState(false);
+    const [clarification, setClarification] = useState('');
+    const [ambiguityScore, setAmbiguityScore] = useState(null);
+    const [clarificationId, setClarificationId] = useState('');
+    const [clarificationOptions, setClarificationOptions] = useState([]);
+    const [clarificationInput, setClarificationInput] = useState('');
+    const [clarifying, setClarifying] = useState(false);
+    const [clarificationError, setClarificationError] = useState('');
+
+    const applySearchPayload = (payload = {}, fallbackQuery = '') => {
+        const items = payload.items || [];
+        setResults(items);
+        setLastQuery(payload.query || fallbackQuery);
+        setAvailable(payload.available !== false);
+        setAmbiguityScore(
+            typeof payload.ambiguityScore === 'number' ? payload.ambiguityScore : null
+        );
+
+        if (payload.needsClarification && payload.clarificationPrompt && payload.clarificationId) {
+            setClarification(payload.clarificationPrompt);
+            setClarificationId(payload.clarificationId);
+            setClarificationOptions(payload.clarificationOptions || []);
+        } else {
+            setClarification('');
+            setClarificationId('');
+            setClarificationOptions([]);
+        }
+
+        setClarificationInput('');
+        setClarificationError('');
+    };
 
     const handleSearch = async (inputQuery) => {
         const prompt = (inputQuery ?? query).trim();
         if (prompt.length < 3) {
             setError('Describe what you are craving (at least 3 characters).');
+            setClarification('');
+            setClarificationId('');
+            setClarificationOptions([]);
+            setClarificationInput('');
+            setClarificationError('');
+            setAmbiguityScore(null);
             return;
         }
         if (!sessionToken) {
             setError('Start or resume a session to search the menu.');
+            setClarification('');
+            setClarificationId('');
+            setClarificationOptions([]);
+            setClarificationInput('');
+            setClarificationError('');
+            setAmbiguityScore(null);
             return;
         }
 
         setLoading(true);
         setError('');
         setSearched(true);
+        setClarification('');
+        setClarificationId('');
+        setClarificationOptions([]);
+        setClarificationInput('');
+        setClarificationError('');
+        setClarifying(false);
+        setAmbiguityScore(null);
         try {
             const response = await searchMenuItems(sessionToken, prompt);
             const payload = response.data?.data || { items: [] };
-            setResults(payload.items || []);
-            setLastQuery(prompt);
-            setAvailable(payload.available !== false);
+            applySearchPayload(payload, prompt);
         } catch (err) {
             const message = err.response?.data?.message || 'Unable to search the menu right now.';
             setError(message);
+            setClarification('');
+            setClarificationId('');
+            setClarificationOptions([]);
+            setClarificationInput('');
+            setClarificationError('');
+            setAmbiguityScore(null);
         } finally {
             setLoading(false);
         }
@@ -55,6 +108,43 @@ const MenuSearch = ({ sessionToken, onAdd, formatPrice }) => {
     const handleSuggestion = (text) => {
         setQuery(text);
         handleSearch(text);
+    };
+
+    const handleClarificationOption = (value) => {
+        setClarificationInput(value);
+        setClarificationError('');
+    };
+
+    const handleClarificationSubmit = async (event) => {
+        event.preventDefault();
+        const answer = clarificationInput.trim();
+        if (!clarificationId) {
+            setClarificationError('Clarification request not found. Please try searching again.');
+            return;
+        }
+        if (answer.length < 2) {
+            setClarificationError('Please add a bit more detail (at least 2 characters).');
+            return;
+        }
+        if (!sessionToken) {
+            setClarificationError('You need an active session to continue.');
+            return;
+        }
+
+        setClarifying(true);
+        setClarificationError('');
+        setError('');
+        try {
+            const response = await clarifyMenuSearch(sessionToken, clarificationId, answer);
+            const payload = response.data?.data || { items: [] };
+            setSearched(true);
+            applySearchPayload(payload, payload.query || `${lastQuery} ${answer}`.trim());
+        } catch (err) {
+            const message = err.response?.data?.message || 'Unable to refine the search right now.';
+            setClarificationError(message);
+        } finally {
+            setClarifying(false);
+        }
     };
 
     const renderResults = () => {
@@ -99,8 +189,64 @@ const MenuSearch = ({ sessionToken, onAdd, formatPrice }) => {
             );
         }
 
+        const showClarification = Boolean(clarification);
+        const allowClarificationForm = Boolean(clarificationId);
+
         return (
             <div className="menu-search-results">
+                {showClarification && (
+                    <div className="menu-search-clarification">
+                        <div className="menu-search-clarification__prompt">
+                            <strong>Need more detail?</strong>
+                            <span>{clarification}</span>
+                            {ambiguityScore !== null && (
+                                <span className="menu-search-clarification__score">
+                                    {`${Math.round(ambiguityScore * 100)}% ambiguous`}
+                                </span>
+                            )}
+                        </div>
+                        {allowClarificationForm && clarificationOptions.length > 0 && (
+                            <div className="menu-search-clarification__options">
+                                {clarificationOptions.map((option) => (
+                                    <button
+                                        type="button"
+                                        key={`clarification-option-${option}`}
+                                        onClick={() => handleClarificationOption(option)}
+                                        disabled={clarifying}
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {allowClarificationForm ? (
+                            <form className="menu-search-clarification__form" onSubmit={handleClarificationSubmit}>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Add more detail (e.g. spice level, dish style)"
+                                    value={clarificationInput}
+                                    onChange={(event) => {
+                                        setClarificationInput(event.target.value);
+                                        if (clarificationError) {
+                                            setClarificationError('');
+                                        }
+                                    }}
+                                    disabled={clarifying}
+                                />
+                                <Button type="submit" size="sm" disabled={clarifying}>
+                                    {clarifying ? 'Refining…' : 'Refine search'}
+                                </Button>
+                            </form>
+                        ) : (
+                            <div className="menu-search-clarification__note">
+                                Try adding a bit more detail so I can narrow the list.
+                            </div>
+                        )}
+                        {clarificationError && allowClarificationForm && (
+                            <div className="menu-search-clarification__error">{clarificationError}</div>
+                        )}
+                    </div>
+                )}
                 {results.map((item) => (
                     <article key={item.id} className="menu-search-result">
                         <div className="menu-search-result__media">

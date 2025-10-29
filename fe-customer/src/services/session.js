@@ -43,6 +43,14 @@ export const searchMenuItems = (sessionToken, query, limit = 6) =>
         }
     });
 
+export const clarifyMenuSearch = (sessionToken, clarificationId, answer, limit = 6) =>
+    api.post('/customer/menu/search/clarify', {
+        sessionToken,
+        clarificationId,
+        answer,
+        limit
+    });
+
 export const openOrdersStream = (sessionToken) => {
     if (!sessionToken) {
         throw new Error('Session token is required');
