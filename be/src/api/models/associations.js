@@ -29,7 +29,10 @@ const setupAssociations = (models) => {
         VoucherTier,
         CustomerVoucher,
         MenuRecommendation,
-        MenuRecommendationHistory
+        MenuRecommendationHistory,
+        MenuQueryLog,
+        MenuQueryCandidate,
+        MenuQueryClarification
     } = models;
 
     User.hasOne(UserCredential, { foreignKey: 'user_id', as: 'credential' });
@@ -192,6 +195,29 @@ const setupAssociations = (models) => {
             foreignKey: 'recommended_item_id',
             as: 'recommendedItem'
         });
+    }
+
+    if (MenuQueryLog) {
+        Restaurant.hasMany(MenuQueryLog, { foreignKey: 'restaurant_id', as: 'menuQueryLogs' });
+        MenuQueryLog.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
+
+        GuestSession.hasMany(MenuQueryLog, { foreignKey: 'guest_session_id', as: 'menuQueryLogs' });
+        MenuQueryLog.belongsTo(GuestSession, { foreignKey: 'guest_session_id', as: 'guestSession' });
+
+        Customer.hasMany(MenuQueryLog, { foreignKey: 'customer_id', as: 'menuQueryLogs' });
+        MenuQueryLog.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+    }
+
+    if (MenuQueryLog && MenuQueryCandidate) {
+        MenuQueryLog.hasMany(MenuQueryCandidate, { foreignKey: 'query_log_id', as: 'candidates' });
+        MenuQueryCandidate.belongsTo(MenuQueryLog, { foreignKey: 'query_log_id', as: 'queryLog' });
+        MenuQueryCandidate.belongsTo(MenuItem, { foreignKey: 'menu_item_id', as: 'menuItem' });
+        MenuItem.hasMany(MenuQueryCandidate, { foreignKey: 'menu_item_id', as: 'menuQueryCandidates' });
+    }
+
+    if (MenuQueryLog && MenuQueryClarification) {
+        MenuQueryLog.hasMany(MenuQueryClarification, { foreignKey: 'query_log_id', as: 'clarifications' });
+        MenuQueryClarification.belongsTo(MenuQueryLog, { foreignKey: 'query_log_id', as: 'queryLog' });
     }
 };
 
