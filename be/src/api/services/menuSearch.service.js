@@ -6,6 +6,7 @@ import { MENU_QUERY_RESOLUTION_STATUS } from '../utils/common.js';
 import { normalizeAssetUrl } from './storage.service.js';
 import { getMenuEnrichment, hasMenuEnrichment } from './menuEnrichment.service.js';
 import { embedText } from './embedding.service.js';
+import { scoreClarification } from './clarificationPredictor.service.js';
 
 const {
     GuestSession,
@@ -21,6 +22,7 @@ const VECTOR_COLLECTION = env.vector?.qdrant?.collection || null;
 const HAS_VECTOR_SEARCH = Boolean(qdrantClient && VECTOR_COLLECTION && env.vector?.embedding?.baseUrl);
 const VECTOR_WEIGHT = 5.5;
 const VECTOR_CANDIDATE_LIMIT = 24;
+const CLARIFICATION_MODEL_THRESHOLD = env.clarificationModel?.threshold ?? 0.6;
 
 const STOP_WORDS = new Set([
     'i',
@@ -125,6 +127,51 @@ const computeAmbiguityScore = (scores) => {
     }
     const ratio = Math.min(Math.max(secondScore / (topScore || Number.EPSILON), 0), 1);
     return toFixedNumber(ratio);
+};
+
+const toBinaryFlag = (value) => {
+    if (!value) {
+        return 0;
+    }
+    if (value instanceof Set) {
+        return value.size > 0 ? 1 : 0;
+    }
+    if (Array.isArray(value)) {
+        return value.length > 0 ? 1 : 0;
+    }
+    if (typeof value === 'boolean') {
+        return value ? 1 : 0;
+    }
+    if (typeof value === 'string') {
+        return value.trim().length > 0 ? 1 : 0;
+    }
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value !== 0 ? 1 : 0;
+    }
+    return 0;
+};
+
+const normalizeOptionValue = (value) => String(value ?? '').trim().toLowerCase();
+
+const buildClarificationModelFeatures = ({ tokens = [], query = '', intents = {}, options = [], answer = '' }) => {
+    const normalizedAnswer = normalizeOptionValue(answer);
+    const normalizedOptions = Array.isArray(options) ? options.map(normalizeOptionValue).filter(Boolean) : [];
+    const hasAnswerInOptions = normalizedAnswer && normalizedOptions.includes(normalizedAnswer) ? 1 : 0;
+
+    const features = {
+        token_count: Number(tokens?.length || 0),
+        has_answer_in_options: hasAnswerInOptions,
+        answer_length: normalizedAnswer ? normalizedAnswer.length : String(query || '').trim().length,
+        intent_courses: toBinaryFlag(intents?.courses),
+        intent_temperature: toBinaryFlag(intents?.temperature),
+        intent_spice: toBinaryFlag(intents?.spice),
+        intent_alcoholPreference: typeof intents?.alcoholPreference === 'boolean' ? (intents.alcoholPreference ? 1 : 0) : 0,
+        intent_requireDietary: toBinaryFlag(intents?.requireDietary),
+        intent_avoidAllergens: toBinaryFlag(intents?.avoidAllergens),
+        intent_ingredientFocus: toBinaryFlag(intents?.ingredientFocus)
+    };
+
+    return features;
 };
 
 const formatListWithOr = (items) => {
@@ -722,6 +769,45 @@ export const searchMenuItems = async (sessionToken, query, options = {}) => {
           : MENU_QUERY_RESOLUTION_STATUS.AUTO;
     const fallbackReason = hasResults ? null : 'NO_MATCH';
 
+    let clarificationModel = null;
+    if (env.clarificationModel?.url) {
+        const predictorFeatures = buildClarificationModelFeatures({
+            tokens,
+            query: trimmed,
+            intents,
+            options: clarificationOptions
+        });
+        try {
+            const result = await scoreClarification(predictorFeatures);
+            if (result) {
+                const {
+                    prediction = null,
+                    probability = null,
+                    feature_order: featureOrder = [],
+                    feature_values: featureValues = [],
+                    missing_features: missingFeatures = [],
+                    model_metadata: modelMetadata = {}
+                } = result;
+
+                clarificationModel = {
+                    prediction,
+                    probability,
+                    featureOrder,
+                    featureValues,
+                    missingFeatures,
+                    features: predictorFeatures,
+                    modelMetadata
+                };
+
+                if (!needsClarification && typeof probability === 'number' && probability >= CLARIFICATION_MODEL_THRESHOLD) {
+                    needsClarification = true;
+                }
+            }
+        } catch (error) {
+            logger.debug('Clarification predictor call failed', { message: error.message });
+        }
+    }
+
     const metadata = {
         available,
         tokenCount: tokens.length,
@@ -735,6 +821,17 @@ export const searchMenuItems = async (sessionToken, query, options = {}) => {
             topCandidateScore: vectorCandidates[0]?.score ?? null
         }
     };
+
+    if (clarificationModel) {
+        metadata.clarificationModel = {
+            prediction: clarificationModel.prediction,
+            probability: clarificationModel.probability,
+            missingFeatures: clarificationModel.missingFeatures,
+            featureOrder: clarificationModel.featureOrder,
+            modelMetadata: clarificationModel.modelMetadata,
+            features: clarificationModel.features
+        };
+    }
 
     if (options.parentClarificationId) {
         metadata.parentClarificationId = options.parentClarificationId;

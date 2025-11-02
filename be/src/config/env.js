@@ -59,6 +59,12 @@ const env = {
             intervalMinutes: Number(process.env.RAG_AUTO_SYNC_INTERVAL_MINUTES) || 60
         }
     },
+    clarificationModel: {
+        url: process.env.CLARIFICATION_MODEL_URL || '',
+        adminKey: process.env.CLARIFICATION_MODEL_ADMIN_KEY || process.env.RAG_ADMIN_KEY || '',
+        timeoutMs: Number(process.env.CLARIFICATION_MODEL_TIMEOUT_MS) || 1200,
+        threshold: Number(process.env.CLARIFICATION_MODEL_PROB_THRESHOLD) || 0.6
+    },
     menu: {
         enrichmentPath: process.env.MENU_ENRICHMENT_PATH || ''
     },
