@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routers import analytics, rag
+from .routers import analytics, clarification, rag
 
 
 def create_app() -> FastAPI:
@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
 
     app.include_router(rag.router)
     app.include_router(analytics.router)
+    app.include_router(clarification.router)
     return app
 
 

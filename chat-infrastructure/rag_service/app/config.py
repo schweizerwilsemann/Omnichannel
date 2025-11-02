@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     db_user: str | None = Field(default=None, alias="DB_USER")
     db_password: str | None = Field(default=None, alias="DB_PASSWORD")
     db_dialect: str | None = Field(default=None, alias="DB_DIALECT")
+    clarification_model_path: str = Field(
+        default="notebooks/menu_query_training/artifacts/clarification_model.joblib",
+        alias="CLARIFICATION_MODEL_PATH"
+    )
+    clarification_model_reload_seconds: int = Field(
+        default=60,
+        alias="CLARIFICATION_MODEL_RELOAD_SECONDS"
+    )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

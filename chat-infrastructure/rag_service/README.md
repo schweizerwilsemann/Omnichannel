@@ -16,6 +16,8 @@ FastAPI microservice that powers a restaurant FAQ retrieval-augmented generation
 | POST   | `/rag/embed`      | Return raw embeddings for arbitrary texts. (admin)|
 | POST   | `/rag/cache/flush`| Purge cached answers from Redis. (admin)         |
 | GET    | `/rag/health`     | Service, Qdrant, Redis connectivity check.       |
+| GET    | `/analytics/menu-query/clarifications` | Export menu search clarification logs. (admin) |
+| POST   | `/clarification/predict` | Score a menu-query clarification feature vector. (admin) |
 
 ## Running Locally
 
@@ -30,6 +32,30 @@ Environment variables can be set via `.env` (see `.env.example`).
 If the customer UI runs on a different origin, set `CORS_ALLOW_ORIGINS` (comma-separated) so browsers can reach the service from that host.
 
 To restrict ingestion and cache control endpoints, set `RAG_ADMIN_API_KEY`. Clients (like the admin backend) must pass the same value via the `x-rag-admin-key` header when calling `/rag/ingest` or `/rag/cache/flush`.
+
+### Clarification Predictor (Menu Search)
+
+1. **Train a model** – Run the notebooks under `chat-infrastructure/rag_service/notebooks/menu_query_training` (`01_extract_data` → `02_prepare_dataset` → `03_train_model`). This produces `notebooks/menu_query_training/artifacts/clarification_model.joblib`.
+2. **Configure the service** – Point `CLARIFICATION_MODEL_PATH` at the saved artifact (defaults to the path above) and optionally tweak `CLARIFICATION_MODEL_RELOAD_SECONDS`.
+3. **Start FastAPI** – `uvicorn app.main:app --host 0.0.0.0 --port 8081`.
+4. **Call the endpoint:**
+   ```bash
+   curl -X POST http://localhost:8081/clarification/predict \
+     -H "Content-Type: application/json" \
+     -H "x-rag-admin-key: $RAG_ADMIN_API_KEY" \
+     -d '{
+           "features": {
+             "token_count": 3,
+             "has_answer_in_options": 0,
+             "answer_length": 14,
+             "intent_ingredientFocus": 1,
+             "intent_requireDietary": 1
+           }
+         }'
+   ```
+   The response includes the predicted label, probability, feature order, and the metadata saved with the model.
+
+5. **Backend integration** – Once `menuSearch.service.js` assembles match features, POST them to this endpoint. Use the returned probability or label to decide whether to request clarification, log the result alongside heuristic scores, and fall back gracefully if the service is unreachable. The backend reads `CLARIFICATION_MODEL_PROB_THRESHOLD` to decide how much confidence is required before letting the model override heuristic ambiguity checks.
 
 ### Example Requests
 

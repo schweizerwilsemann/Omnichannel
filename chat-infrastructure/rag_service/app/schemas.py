@@ -78,3 +78,16 @@ class ClarificationRecord(BaseModel):
 class ClarificationResponse(BaseModel):
     count: int
     items: List[ClarificationRecord]
+
+
+class ClarificationPredictRequest(BaseModel):
+    features: Dict[str, Any]
+
+
+class ClarificationPredictResponse(BaseModel):
+    prediction: int
+    probability: float
+    feature_order: List[str]
+    feature_values: List[float]
+    missing_features: List[str]
+    model_metadata: Dict[str, Any] = Field(default_factory=dict)
