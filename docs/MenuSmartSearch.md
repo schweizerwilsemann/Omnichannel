@@ -114,5 +114,38 @@ This schema lets us audit ambiguous phrasing, label data for model fine-tuning, 
 - Consider adding a reranker microservice (cross-encoder / LLM) writing `rerank_score` into `menu_query_candidates`.
 - Periodically rerun the vector sync script whenever menu enrichment changes.
 
+## 9. Clarification Predictor Service (optional)
+- Train the notebook pipeline (`chat-infrastructure/rag_service/notebooks/menu_query_training/…`) to produce `clarification_model.joblib`, then start the FastAPI service (`uvicorn app.main:app --host 0.0.0.0 --port 8081`) with `CLARIFICATION_MODEL_PATH` pointing at the artifact.
+- Add the following env vars to the Node backend (`be/.env`):
+  ```
+  CLARIFICATION_MODEL_URL=http://localhost:8081/clarification/predict
+  CLARIFICATION_MODEL_ADMIN_KEY=rag_admin_secret_key
+  CLARIFICATION_MODEL_TIMEOUT_MS=1200
+  CLARIFICATION_MODEL_PROB_THRESHOLD=0.6
+  ```
+- Example integration inside `menuSearch.service.js` once you have `tokens` and `intents` (pseudocode):
+  ```js
+  import { scoreClarification } from './clarificationPredictor.service.js';
+
+  const features = {
+    token_count: tokens.length,
+    has_answer_in_options: 0,
+    answer_length: trimmed.length,
+    intent_courses: intents.courses.size > 0 ? 1 : 0,
+    intent_temperature: intents.temperature ? 1 : 0,
+    intent_spice: intents.spice ? 1 : 0,
+    intent_alcoholPreference: intents.alcoholPreference === true ? 1 : 0,
+    intent_requireDietary: intents.requireDietary.size > 0 ? 1 : 0,
+    intent_avoidAllergens: intents.avoidAllergens.size > 0 ? 1 : 0,
+    intent_ingredientFocus: intents.ingredientFocus.size > 0 ? 1 : 0
+  };
+
+  const modelResult = await scoreClarification(features);
+  if (modelResult && modelResult.probability >= 0.6) {
+    needsClarification = true;
+  }
+  ```
+- Make the call optional: only invoke the predictor when `CLARIFICATION_MODEL_URL` is defined, fall back to the heuristic ambiguity logic on failure, and log `modelResult` alongside existing analytics for offline evaluation.
+
 ---
 This document captures the current implementation and how to reproduce the full pipeline end-to-end. Update it if the embedding model, vector weight, or clarification logic changes.
