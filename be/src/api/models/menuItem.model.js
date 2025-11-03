@@ -39,6 +39,12 @@ const menuItemModel = (sequelize) =>
                 defaultValue: true,
                 field: 'is_available'
             },
+            isCombo: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: false,
+                field: 'is_combo'
+            },
             prepTimeSeconds: {
                 type: DataTypes.INTEGER,
                 allowNull: true,
