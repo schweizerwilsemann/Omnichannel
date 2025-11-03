@@ -12,6 +12,7 @@ import {
 } from '../services/session.js';
 import MenuCategory from '../components/menu/MenuCategory.jsx';
 import MenuSearch from '../components/menu/MenuSearch.jsx';
+import MenuCombos from '../components/menu/MenuCombos.jsx';
 import resolveAssetUrl from '../utils/assets.js';
 
 const formatPrice = (cents) => `USD ${(cents / 100).toFixed(2)}`;
@@ -27,7 +28,7 @@ const MenuPage = () => {
         vouchers
     } = useSession();
     const { addItem, cartQuantity, totalCents } = useCart();
-    const [menuData, setMenuData] = useState({ categories: [], session: null });
+    const [menuData, setMenuData] = useState({ categories: [], combos: [], session: null });
     const [loadingMenu, setLoadingMenu] = useState(false);
     const [menuError, setMenuError] = useState(null);
     const navigate = useNavigate();
@@ -76,8 +77,12 @@ const MenuPage = () => {
         setMenuError(null);
         try {
             const response = await fetchMenu(sessionToken);
-            const payload = response.data?.data || { categories: [], session: null };
-            setMenuData(payload);
+            const payload = response.data?.data || { categories: [], combos: [], session: null };
+            setMenuData({
+                session: payload.session || null,
+                categories: Array.isArray(payload.categories) ? payload.categories : [],
+                combos: Array.isArray(payload.combos) ? payload.combos : []
+            });
         } catch (error) {
             const message = error.response?.data?.message || error.message || 'Unable to load menu';
             setMenuError(message);
@@ -311,6 +316,13 @@ const MenuPage = () => {
         toast.success(`${menuItem.name} added to cart`, { toastId: `add-${menuItem.id}` });
     };
 
+    const handleAddCombo = (combo) => {
+        addItem(combo);
+        toast.success(`${combo.name} combo added to cart`, { toastId: `combo-${combo.id}` });
+    };
+
+    const combos = useMemo(() => menuData.combos || [], [menuData.combos]);
+
     const activeCategories = useMemo(
         () => (menuData.categories || []).filter((category) => Array.isArray(category.items) && category.items.length > 0),
         [menuData.categories]
@@ -354,7 +366,11 @@ const MenuPage = () => {
                         </Button>
                     </div>
                 </div>
-            </section>
+        </section>
+
+            {combos.length > 0 && (
+                <MenuCombos combos={combos} onAdd={handleAddCombo} formatPrice={formatPrice} />
+            )}
 
             {quickFilters.length > 0 && (
                 <div className="menu-quick-filters">
