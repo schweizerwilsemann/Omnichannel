@@ -6,6 +6,8 @@ import {
     fetchMenuCatalog,
     createMenuItem,
     updateMenuItem,
+    createMenuCombo,
+    updateMenuCombo,
     fetchCustomers,
     createCustomerMembership,
     updateCustomerMembership,
@@ -142,6 +144,18 @@ const initialMenuForm = {
     isAvailable: true
 };
 
+const createInitialComboForm = () => ({
+    restaurantId: '',
+    name: '',
+    sku: '',
+    price: '',
+    description: '',
+    prepTimeSeconds: '',
+    imageUrl: '',
+    isAvailable: true,
+    components: [{ menuItemId: '', quantity: '1' }]
+});
+
 const initialCustomerForm = {
     restaurantId: '',
     firstName: '',
@@ -166,18 +180,24 @@ const ManagementPage = () => {
     const [activeKey, setActiveKey] = useState(MANAGEMENT_TABS.MENU);
     const [loading, setLoading] = useState({ menu: false, customers: false, tables: false });
     const [loaded, setLoaded] = useState({ menu: false, customers: false, tables: false });
-    const [saving, setSaving] = useState({ menu: false, customers: false, tables: false });
-    const [menuData, setMenuData] = useState({ restaurants: [], categories: [], items: [] });
+    const [saving, setSaving] = useState({ menu: false, combos: false, customers: false, tables: false });
+    const [menuData, setMenuData] = useState({ restaurants: [], categories: [], items: [], combos: [], menuLibrary: [] });
     const [customerData, setCustomerData] = useState({ restaurants: [], memberships: [] });
     const [tableData, setTableData] = useState({ restaurants: [], tables: [] });
     const [menuForm, setMenuForm] = useState(initialMenuForm);
+    const [comboForm, setComboForm] = useState(createInitialComboForm());
     const [customerForm, setCustomerForm] = useState(initialCustomerForm);
     const [tableForm, setTableForm] = useState(initialTableForm);
-    const [mutations, setMutations] = useState({ menuItems: {}, memberships: {}, tables: {} });
+    const [mutations, setMutations] = useState({ menuItems: {}, menuCombos: {}, memberships: {}, tables: {} });
     const menuImageInputRef = useRef(null);
     const [menuImageFile, setMenuImageFile] = useState(null);
     const [menuImagePreview, setMenuImagePreview] = useState('');
     const [menuImageUploading, setMenuImageUploading] = useState(false);
+    const comboImageInputRef = useRef(null);
+    const [comboImageFile, setComboImageFile] = useState(null);
+    const [comboImagePreview, setComboImagePreview] = useState('');
+    const [comboImageUploading, setComboImageUploading] = useState(false);
+    const [comboSearch, setComboSearch] = useState('');
     const [menuPagination, setMenuPagination] = useState({
         page: 1,
         pageSize: DEFAULT_PAGE_SIZE,
@@ -212,6 +232,20 @@ const ManagementPage = () => {
             URL.revokeObjectURL(menuImagePreview);
         }
     }, [menuImagePreview]);
+    useEffect(() => () => {
+        if (comboImagePreview) {
+            URL.revokeObjectURL(comboImagePreview);
+        }
+    }, [comboImagePreview]);
+    useEffect(() => {
+        if (!comboForm.restaurantId && menuData.restaurants.length > 0) {
+            setComboForm((prev) => ({
+                ...prev,
+                restaurantId: menuData.restaurants[0].id
+            }));
+            setComboSearch('');
+        }
+    }, [comboForm.restaurantId, menuData.restaurants]);
     const loadMenuData = useCallback(
         async (overrides = {}) => {
             const nextPage = overrides.page ?? menuPagination.page;
@@ -221,11 +255,54 @@ const ManagementPage = () => {
             try {
                 const response = await fetchMenuCatalog({ page: nextPage, pageSize: nextPageSize });
                 const payload = response.data?.data || {};
-                setMenuData({
+
+                let uniqueMenuLibrary = null;
+                if (nextPage === 1) {
+                    let menuLibrary = Array.isArray(payload.items) ? [...payload.items] : [];
+                    const totalPages = payload.pagination?.totalPages || 1;
+                    const pageSizeForFetch = payload.pagination?.pageSize || nextPageSize;
+
+                    if (totalPages > 1) {
+                        const extraRequests = [];
+                        for (let pageIndex = 2; pageIndex <= totalPages; pageIndex++) {
+                            extraRequests.push(fetchMenuCatalog({ page: pageIndex, pageSize: pageSizeForFetch }));
+                        }
+                        try {
+                            const extraResponses = await Promise.all(extraRequests);
+                            extraResponses.forEach((extra) => {
+                                const extraPayload = extra.data?.data || {};
+                                if (Array.isArray(extraPayload.items)) {
+                                    menuLibrary = menuLibrary.concat(extraPayload.items);
+                                }
+                            });
+                        } catch (error) {
+                            console.warn('Unable to load additional menu items for combo selector', error);
+                        }
+                    }
+
+                    uniqueMenuLibrary = Array.from(
+                        new Map(
+                            menuLibrary
+                                .filter((item) => item && item.id)
+                                .map((item) => [item.id, item])
+                        ).values()
+                    );
+                    uniqueMenuLibrary.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                }
+
+                setMenuData((prev) => ({
                     restaurants: payload.restaurants || [],
                     categories: payload.categories || [],
-                    items: payload.items || []
-                });
+                    items: payload.items || [],
+                    combos: payload.combos || [],
+                    menuLibrary:
+                        nextPage === 1
+                            ? uniqueMenuLibrary ??
+                                (Array.isArray(payload.items)
+                                    ? [...payload.items].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                                    : [])
+                            : prev.menuLibrary
+                }));
                 setMenuPagination(
                     toPaginationState(payload.pagination || {}, nextPage, nextPageSize, payload.items?.length ?? 0)
                 );
@@ -308,16 +385,6 @@ const ManagementPage = () => {
 
     const handleMenuFormChange = (event) => {
         const { name, value, type, checked } = event.target;
-        if (name === 'imageUrl') {
-            if (menuImagePreview) {
-                URL.revokeObjectURL(menuImagePreview);
-            }
-            setMenuImagePreview('');
-            setMenuImageFile(null);
-            if (menuImageInputRef.current) {
-                menuImageInputRef.current.value = '';
-            }
-        }
         setMenuForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
 
@@ -330,6 +397,7 @@ const ManagementPage = () => {
         if (menuImageInputRef.current) {
             menuImageInputRef.current.value = '';
         }
+        setMenuForm((prev) => ({ ...prev, imageUrl: '' }));
     };
 
     const handleMenuImageFileChange = (event) => {
@@ -353,6 +421,84 @@ const ManagementPage = () => {
         const previewUrl = URL.createObjectURL(file);
         setMenuImageFile(file);
         setMenuImagePreview(previewUrl);
+    };
+
+    const handleComboFormChange = (event) => {
+        const { name, value, type, checked } = event.target;
+        if (name === 'restaurantId') {
+            setComboForm((prev) => ({
+                ...prev,
+                restaurantId: value,
+                components: [{ menuItemId: '', quantity: '1' }]
+            }));
+            setComboSearch('');
+            return;
+        }
+        setComboForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    };
+
+    const clearComboImageSelection = () => {
+        if (comboImagePreview) {
+            URL.revokeObjectURL(comboImagePreview);
+        }
+        setComboImagePreview('');
+        setComboImageFile(null);
+        if (comboImageInputRef.current) {
+            comboImageInputRef.current.value = '';
+        }
+        setComboForm((prev) => ({ ...prev, imageUrl: '' }));
+    };
+
+    const handleComboImageFileChange = (event) => {
+        const file = event.target.files?.[0] || null;
+
+        if (!file) {
+            clearComboImageSelection();
+            return;
+        }
+
+        if (!file.type.startsWith('image/')) {
+            toast.warning('Vui lòng chọn tệp hình ảnh hợp lệ.');
+            clearComboImageSelection();
+            return;
+        }
+
+        if (comboImagePreview) {
+            URL.revokeObjectURL(comboImagePreview);
+        }
+
+        const previewUrl = URL.createObjectURL(file);
+        setComboImageFile(file);
+        setComboImagePreview(previewUrl);
+    };
+
+    const handleComboComponentChange = (index, field, value) => {
+        setComboForm((prev) => {
+            const nextComponents = prev.components.map((component, componentIndex) =>
+                componentIndex === index ? { ...component, [field]: value } : component
+            );
+            return { ...prev, components: nextComponents };
+        });
+    };
+
+    const handleAddComboComponent = () => {
+        setComboForm((prev) => ({
+            ...prev,
+            components: [...prev.components, { menuItemId: '', quantity: '1' }]
+        }));
+    };
+
+    const handleRemoveComboComponent = (index) => {
+        setComboForm((prev) => {
+            if (prev.components.length <= 1) {
+                return prev;
+            }
+            const nextComponents = prev.components.filter((_, componentIndex) => componentIndex !== index);
+            return {
+                ...prev,
+                components: nextComponents.length > 0 ? nextComponents : [{ menuItemId: '', quantity: '1' }]
+            };
+        });
     };
 
     const handleCustomerFormChange = (event) => {
@@ -415,6 +561,9 @@ const ManagementPage = () => {
                     const uploaded = uploadResponse.data?.data;
                     resolvedImageUrl =
                         uploaded?.publicUrl || uploaded?.downloadUrl || uploaded?.fileName || resolvedImageUrl;
+                    if (resolvedImageUrl) {
+                        setMenuForm((prev) => ({ ...prev, imageUrl: resolvedImageUrl }));
+                    }
                 } catch (error) {
                     toast.error(error.response?.data?.message || 'Unable to upload image');
                     return;
@@ -461,6 +610,124 @@ const ManagementPage = () => {
                 const nextMenu = { ...prev.menuItems };
                 delete nextMenu[item.id];
                 return { ...prev, menuItems: nextMenu };
+            });
+        }
+    };
+
+    const handleCreateCombo = async (event) => {
+        event.preventDefault();
+        if (saving.combos || comboImageUploading) {
+            return;
+        }
+        if (!comboForm.restaurantId) {
+            toast.warning('Please choose a restaurant for this combo');
+            return;
+        }
+        const priceValue = parseFloat(comboForm.price);
+        if (!Number.isFinite(priceValue)) {
+            toast.warning('Please enter a valid combo price');
+            return;
+        }
+
+        const componentPayload = comboForm.components
+            .filter((component) => component.menuItemId)
+            .map((component) => ({
+                menuItemId: component.menuItemId,
+                quantity: Math.max(1, Number.parseInt(component.quantity, 10) || 1)
+            }));
+
+        if (componentPayload.length === 0) {
+            toast.warning('Add at least one menu item to the combo');
+            return;
+        }
+
+        const payload = {
+            restaurantId: comboForm.restaurantId,
+            name: normalizeText(comboForm.name),
+            sku: normalizeText(comboForm.sku),
+            description: normalizeText(comboForm.description),
+            priceCents: Math.max(0, Math.round(priceValue * 100)),
+            isAvailable: Boolean(comboForm.isAvailable),
+            prepTimeSeconds: comboForm.prepTimeSeconds ? Number.parseInt(comboForm.prepTimeSeconds, 10) : null,
+            items: componentPayload
+        };
+
+        if (!payload.name || !payload.sku) {
+            toast.warning('Name and SKU are required for combos');
+            return;
+        }
+
+        if (Number.isNaN(payload.prepTimeSeconds)) {
+            payload.prepTimeSeconds = null;
+        }
+
+        setSaving((prev) => ({ ...prev, combos: true }));
+        try {
+            let resolvedImageUrl = normalizeText(comboForm.imageUrl);
+
+            if (comboImageFile) {
+                setComboImageUploading(true);
+                try {
+                    const uploadResponse = await uploadAssetFile(comboImageFile);
+                    const uploaded = uploadResponse.data?.data;
+                    resolvedImageUrl =
+                        uploaded?.publicUrl || uploaded?.downloadUrl || uploaded?.fileName || resolvedImageUrl;
+                    if (resolvedImageUrl) {
+                        setComboForm((prev) => ({ ...prev, imageUrl: resolvedImageUrl }));
+                    }
+                } catch (error) {
+                    toast.error(error.response?.data?.message || 'Unable to upload combo image');
+                    return;
+                } finally {
+                    setComboImageUploading(false);
+                }
+            }
+
+            const response = await createMenuCombo({
+                ...payload,
+                imageUrl: resolvedImageUrl || null
+            });
+            const created = response.data?.data;
+            if (created) {
+                toast.success('Menu combo created');
+                clearComboImageSelection();
+                setComboForm((prev) => ({
+                    ...createInitialComboForm(),
+                    restaurantId: prev.restaurantId || ''
+                }));
+                setComboSearch('');
+                await loadMenuData({ page: 1 });
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Unable to create menu combo');
+        } finally {
+            setSaving((prev) => ({ ...prev, combos: false }));
+        }
+    };
+
+    const handleToggleComboAvailability = async (combo) => {
+        const nextValue = !combo.isAvailable;
+        setMutations((prev) => ({
+            ...prev,
+            menuCombos: { ...prev.menuCombos, [combo.id]: true }
+        }));
+        try {
+            const response = await updateMenuCombo(combo.id, { isAvailable: nextValue });
+            const updated = response.data?.data;
+            setMenuData((prev) => ({
+                ...prev,
+                combos: prev.combos.map((entry) =>
+                    entry.id === combo.id ? updated || { ...entry, isAvailable: nextValue } : entry
+                )
+            }));
+            toast.success(nextValue ? 'Combo is now visible to guests' : 'Combo hidden from guests');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Unable to update menu combo');
+        } finally {
+            setMutations((prev) => {
+                const nextCombos = { ...prev.menuCombos };
+                delete nextCombos[combo.id];
+                return { ...prev, menuCombos: nextCombos };
             });
         }
     };
@@ -625,7 +892,26 @@ const ManagementPage = () => {
 
     const categoryOptions = useMemo(() => menuData.categories, [menuData.categories]);
     const menuItems = useMemo(() => menuData.items, [menuData.items]);
+    const menuLibrary = useMemo(() => menuData.menuLibrary || [], [menuData.menuLibrary]);
+    const menuCombos = useMemo(() => menuData.combos || [], [menuData.combos]);
     const customerMemberships = useMemo(() => customerData.memberships, [customerData.memberships]);
+    const menuItemsByRestaurant = useMemo(() => {
+        const mapping = new Map();
+        menuLibrary.forEach((item) => {
+            const restaurantId = item.category?.restaurantId;
+            if (!restaurantId) {
+                return;
+            }
+            if (!mapping.has(restaurantId)) {
+                mapping.set(restaurantId, []);
+            }
+            mapping.get(restaurantId).push(item);
+        });
+        mapping.forEach((entries) => {
+            entries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        });
+        return mapping;
+    }, [menuLibrary]);
     const restaurantOptions = useMemo(() => {
         const restaurantMap = new Map();
         const sources = [menuData.restaurants, customerData.restaurants, tableData.restaurants];
@@ -639,10 +925,28 @@ const ManagementPage = () => {
         return Array.from(restaurantMap.values());
     }, [menuData.restaurants, customerData.restaurants, tableData.restaurants]);
 
+    const comboAvailableOptions = useMemo(
+        () => (comboForm.restaurantId ? menuItemsByRestaurant.get(comboForm.restaurantId) || [] : []),
+        [comboForm.restaurantId, menuItemsByRestaurant]
+    );
+    const comboFilteredOptions = useMemo(() => {
+        if (!comboSearch.trim()) {
+            return comboAvailableOptions;
+        }
+        const keyword = comboSearch.trim().toLowerCase();
+        return comboAvailableOptions.filter((item) => {
+            const nameMatch = item.name?.toLowerCase().includes(keyword);
+            const skuMatch = item.sku?.toLowerCase().includes(keyword);
+            return Boolean(nameMatch || skuMatch);
+        });
+    }, [comboAvailableOptions, comboSearch]);
     const tableEntries = useMemo(() => tableData.tables, [tableData.tables]);
     const menuImagePreviewUrl = menuImagePreview
         ? menuImagePreview
         : resolveAssetUrl(normalizeText(menuForm.imageUrl));
+    const comboImagePreviewUrl = comboImagePreview
+        ? comboImagePreview
+        : resolveAssetUrl(normalizeText(comboForm.imageUrl));
     return (
         <MainLayout>
             <div className="d-flex flex-column gap-4">
@@ -743,7 +1047,7 @@ const ManagementPage = () => {
                                             </Col>
                                             <Col md={6}>
                                                 <Form.Group controlId="menu-image-file">
-                                                    <Form.Label>Dish image (upload)</Form.Label>
+                                                    <Form.Label>Dish image</Form.Label>
                                                     <Form.Control
                                                         type="file"
                                                         accept="image/*"
@@ -752,24 +1056,7 @@ const ManagementPage = () => {
                                                         disabled={saving.menu || menuImageUploading}
                                                     />
                                                     <Form.Text muted>
-                                                        Optional. Upload ảnh để lưu vào MinIO, hệ thống sẽ tự lưu đường dẫn.
-                                                    </Form.Text>
-                                                </Form.Group>
-                                            </Col>
-                                        </Row>
-                                        <Row className="g-3">
-                                            <Col md={6}>
-                                                <Form.Group controlId="menu-image-url">
-                                                    <Form.Label>Image URL</Form.Label>
-                                                    <Form.Control
-                                                        name="imageUrl"
-                                                        value={menuForm.imageUrl}
-                                                        onChange={handleMenuFormChange}
-                                                        placeholder="https://"
-                                                        disabled={saving.menu}
-                                                    />
-                                                    <Form.Text muted>
-                                                        Optional. Dùng khi bạn đã có sẵn đường dẫn ảnh.
+                                                        Optional. Ảnh sẽ được tải lên MinIO và lưu đường dẫn tự động.
                                                     </Form.Text>
                                                 </Form.Group>
                                             </Col>
@@ -809,19 +1096,28 @@ const ManagementPage = () => {
                                                 )}
                                             </Button>
                                         </div>
-                                        {menuImagePreviewUrl ? (
-                                            <Row>
-                                                <Col md={4}>
-                                                    <div className="border rounded p-3 bg-light d-flex flex-column gap-2 align-items-center">
-                                                        <span className="fw-semibold small">Preview</span>
-                                                        <img
-                                                            src={menuImagePreviewUrl}
-                                                            alt="Menu item preview"
-                                                            className="img-fluid rounded"
-                                                            style={{ maxHeight: 160, objectFit: 'cover' }}
-                                                        />
-                                                    </div>
-                                                </Col>
+                                        {menuImagePreviewUrl || menuForm.imageUrl ? (
+                                            <Row className="g-3">
+                                                {menuImagePreviewUrl ? (
+                                                    <Col md={4}>
+                                                        <div className="border rounded p-3 bg-light d-flex flex-column gap-2 align-items-center">
+                                                            <span className="fw-semibold small">Preview</span>
+                                                            <img
+                                                                src={menuImagePreviewUrl}
+                                                                alt="Menu item preview"
+                                                                className="img-fluid rounded"
+                                                                style={{ maxHeight: 160, objectFit: 'cover' }}
+                                                            />
+                                                        </div>
+                                                    </Col>
+                                                ) : null}
+                                                {menuForm.imageUrl ? (
+                                                    <Col md={8}>
+                                                        <div className="small text-muted">
+                                                            Stored image path: <code>{menuForm.imageUrl}</code>
+                                                        </div>
+                                                    </Col>
+                                                ) : null}
                                             </Row>
                                         ) : null}
                                         {categoryOptions.length === 0 ? (
@@ -830,14 +1126,394 @@ const ManagementPage = () => {
                                             </Alert>
                                         ) : null}
                                     </Form>
-                                </Card.Body>
-                            </Card>
+                            </Card.Body>
+                        </Card>
 
-                            <Card className="shadow-sm">
-                                <Card.Body className="d-flex flex-column gap-3">
-                                    <div className="d-flex justify-content-between align-items-center">
-                                        <h5 className="mb-0">Existing items</h5>
-                                        <div className="text-muted small">{menuItems.length} items</div>
+                        <Card className="shadow-sm">
+                            <Card.Body>
+                                <Form onSubmit={handleCreateCombo} className="d-flex flex-column gap-3">
+                                    <Row className="g-3">
+                                        <Col md={4}>
+                                            <Form.Group controlId="combo-restaurant">
+                                                <Form.Label>Restaurant</Form.Label>
+                                                <Form.Select
+                                                    name="restaurantId"
+                                                    value={comboForm.restaurantId}
+                                                    onChange={handleComboFormChange}
+                                                    required
+                                                    disabled={menuData.restaurants.length === 0 || saving.combos}
+                                                >
+                                                    <option value="">Select restaurant</option>
+                                                    {menuData.restaurants.map((restaurant) => (
+                                                        <option key={restaurant.id} value={restaurant.id}>
+                                                            {restaurant.name}
+                                                        </option>
+                                                    ))}
+                                                </Form.Select>
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={4}>
+                                            <Form.Group controlId="combo-name">
+                                                <Form.Label>Name</Form.Label>
+                                                <Form.Control
+                                                    name="name"
+                                                    value={comboForm.name}
+                                                    onChange={handleComboFormChange}
+                                                    placeholder="E.g. Family platter"
+                                                    required
+                                                    disabled={saving.combos}
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={4}>
+                                            <Form.Group controlId="combo-sku">
+                                                <Form.Label>SKU</Form.Label>
+                                                <Form.Control
+                                                    name="sku"
+                                                    value={comboForm.sku}
+                                                    onChange={handleComboFormChange}
+                                                    placeholder="Internal code"
+                                                    required
+                                                    disabled={saving.combos}
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                    </Row>
+                                    <Row className="g-3">
+                                        <Col md={3}>
+                                            <Form.Group controlId="combo-price">
+                                                <Form.Label>Combo price (USD)</Form.Label>
+                                                <Form.Control
+                                                    name="price"
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={comboForm.price}
+                                                    onChange={handleComboFormChange}
+                                                    required
+                                                    disabled={saving.combos}
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={3}>
+                                            <Form.Group controlId="combo-prep-time">
+                                                <Form.Label>Prep time (seconds)</Form.Label>
+                                                <Form.Control
+                                                    name="prepTimeSeconds"
+                                                    type="number"
+                                                    min="0"
+                                                    value={comboForm.prepTimeSeconds}
+                                                    onChange={handleComboFormChange}
+                                                    disabled={saving.combos}
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={3}>
+                                            <Form.Group controlId="combo-available" className="d-flex flex-column">
+                                                <Form.Label>Availability</Form.Label>
+                                                <Form.Check
+                                                    type="switch"
+                                                    name="isAvailable"
+                                                    label={comboForm.isAvailable ? 'Available' : 'Hidden'}
+                                                    checked={comboForm.isAvailable}
+                                                    onChange={handleComboFormChange}
+                                                    disabled={saving.combos}
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                    </Row>
+                                    <Form.Group controlId="combo-description">
+                                    <Form.Label>Description</Form.Label>
+                                        <Form.Control
+                                            as="textarea"
+                                            rows={2}
+                                            name="description"
+                                            value={comboForm.description}
+                                            onChange={handleComboFormChange}
+                                            placeholder="What makes this combo great?"
+                                            disabled={saving.combos}
+                                        />
+                                    </Form.Group>
+                                    <div className="d-flex flex-column gap-2">
+                                        <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2">
+                                            <Form.Label className="mb-0">Included dishes</Form.Label>
+                                            <Form.Control
+                                                type="search"
+                                                placeholder="Search by name or SKU"
+                                                value={comboSearch}
+                                                onChange={(event) => setComboSearch(event.target.value)}
+                                                disabled={!comboForm.restaurantId || comboAvailableOptions.length === 0}
+                                                style={{ maxWidth: 280 }}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={handleAddComboComponent}
+                                                disabled={
+                                                    saving.combos ||
+                                                    !comboForm.restaurantId ||
+                                                    comboAvailableOptions.length === 0
+                                                }
+                                            >
+                                                Add item
+                                            </Button>
+                                        </div>
+                                        {comboForm.components.map((component, index) => {
+                                            const selectedOption = comboAvailableOptions.find(
+                                                (item) => item.id === component.menuItemId
+                                            );
+                                            const optionChoices = selectedOption
+                                                ? [
+                                                      selectedOption,
+                                                      ...comboFilteredOptions.filter(
+                                                          (item) => item.id !== selectedOption.id
+                                                      )
+                                                  ]
+                                                : comboFilteredOptions;
+
+                                            return (
+                                                <Row className="g-2 align-items-end" key={`combo-component-${index}`}>
+                                                    <Col md={6}>
+                                                        <Form.Group>
+                                                            <Form.Label className="visually-hidden">Menu item</Form.Label>
+                                                            <Form.Select
+                                                                value={component.menuItemId}
+                                                                onChange={(event) =>
+                                                                    handleComboComponentChange(
+                                                                        index,
+                                                                        'menuItemId',
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    saving.combos ||
+                                                                    !comboForm.restaurantId ||
+                                                                    comboAvailableOptions.length === 0
+                                                                }
+                                                            >
+                                                                <option value="">Select menu item</option>
+                                                                {optionChoices.map((item) => (
+                                                                    <option key={item.id} value={item.id}>
+                                                                        {item.name}
+                                                                    </option>
+                                                                ))}
+                                                            </Form.Select>
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col xs={6} md={3}>
+                                                        <Form.Group>
+                                                            <Form.Label className="visually-hidden">Quantity</Form.Label>
+                                                            <Form.Control
+                                                                type="number"
+                                                            min="1"
+                                                            value={component.quantity}
+                                                            onChange={(event) =>
+                                                                handleComboComponentChange(
+                                                                    index,
+                                                                    'quantity',
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            disabled={saving.combos}
+                                                        />
+                                                    </Form.Group>
+                                                </Col>
+                                                <Col xs={6} md={3}>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline-danger"
+                                                        size="sm"
+                                                        onClick={() => handleRemoveComboComponent(index)}
+                                                        disabled={saving.combos || comboForm.components.length <= 1}
+                                                    >
+                                                        Remove
+                                                    </Button>
+                                                    </Col>
+                                                </Row>
+                                            );
+                                        })}
+                                        {comboForm.restaurantId && comboAvailableOptions.length === 0 ? (
+                                            <Alert variant="warning" className="mb-0">
+                                                Add menu items for this restaurant before composing combos.
+                                            </Alert>
+                                        ) : null}
+                                        {comboForm.restaurantId &&
+                                        comboAvailableOptions.length > 0 &&
+                                        comboFilteredOptions.length === 0 ? (
+                                            <Alert variant="light" className="mb-0">
+                                                No dishes match your search. Try another keyword.
+                                            </Alert>
+                                        ) : null}
+                                    </div>
+                                    <Row className="g-3 align-items-end">
+                                        <Col md={6}>
+                                            <Form.Group controlId="combo-image-upload">
+                                                <Form.Label className="d-flex justify-content-between align-items-center">
+                                                    <span>Combo image</span>
+                                                    {comboImageUploading ? (
+                                                        <Spinner animation="border" size="sm" role="status" />
+                                                    ) : null}
+                                                </Form.Label>
+                                                <Form.Control
+                                                    type="file"
+                                                    accept="image/*"
+                                                    ref={comboImageInputRef}
+                                                    onChange={handleComboImageFileChange}
+                                                    disabled={saving.combos || comboImageUploading}
+                                                />
+                                                <Form.Text muted>
+                                                    Optional. Ảnh sẽ được tải lên MinIO và lưu đường dẫn tự động.
+                                                </Form.Text>
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={6}>
+                                            <div className="d-flex gap-2 justify-content-end">
+                                                {comboImageFile ? (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline-secondary"
+                                                        onClick={clearComboImageSelection}
+                                                        disabled={saving.combos || comboImageUploading}
+                                                    >
+                                                        Clear upload
+                                                    </Button>
+                                                ) : null}
+                                                <Button
+                                                    type="submit"
+                                                    disabled={
+                                                        saving.combos ||
+                                                        comboImageUploading ||
+                                                        !comboForm.restaurantId ||
+                                                        comboAvailableOptions.length === 0
+                                                    }
+                                                >
+                                                    {saving.combos ? (
+                                                        <>
+                                                            <Spinner animation="border" size="sm" className="me-2" /> Saving…
+                                                        </>
+                                                    ) : (
+                                                        'Create combo'
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                    {comboImagePreviewUrl || comboForm.imageUrl ? (
+                                        <Row className="g-3">
+                                            {comboImagePreviewUrl ? (
+                                                <Col md={4}>
+                                                    <div className="border rounded p-3 bg-light d-flex flex-column gap-2 align-items-center">
+                                                        <span className="fw-semibold small">Combo preview</span>
+                                                        <img
+                                                            src={comboImagePreviewUrl}
+                                                            alt="Combo preview"
+                                                            className="img-fluid rounded"
+                                                            style={{ maxHeight: 160, objectFit: 'cover' }}
+                                                        />
+                                                    </div>
+                                                </Col>
+                                            ) : null}
+                                            {comboForm.imageUrl ? (
+                                                <Col md={8}>
+                                                    <div className="small text-muted">
+                                                        Stored image path: <code>{comboForm.imageUrl}</code>
+                                                    </div>
+                                                </Col>
+                                            ) : null}
+                                        </Row>
+                                    ) : null}
+                                </Form>
+                            </Card.Body>
+                        </Card>
+
+                        <Card className="shadow-sm">
+                            <Card.Body className="d-flex flex-column gap-3">
+                                <div className="d-flex justify-content-between align-items-center">
+                                    <h5 className="mb-0">Combos</h5>
+                                    <div className="text-muted small">{menuCombos.length} combos</div>
+                                </div>
+                                {loading.menu && menuCombos.length === 0 ? (
+                                    <div className="d-flex justify-content-center py-4">
+                                        <Spinner animation="border" role="status" />
+                                    </div>
+                                ) : null}
+                                {!loading.menu && menuCombos.length === 0 ? (
+                                    <Alert variant="light" className="mb-0">
+                                        No combos yet. Build your first combo above to bundle fan favourites.
+                                    </Alert>
+                                ) : null}
+                                {menuCombos.length > 0 ? (
+                                    <div className="table-responsive">
+                                        <Table hover size="sm" className="mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ width: '20%' }}>Name</th>
+                                                    <th style={{ width: '12%' }}>SKU</th>
+                                                    <th style={{ width: '12%' }} className="text-end">
+                                                        Price
+                                                    </th>
+                                                    <th>Included items</th>
+                                                    <th style={{ width: '10%' }} className="text-center">
+                                                        Status
+                                                    </th>
+                                                    <th style={{ width: '12%' }} className="text-end">
+                                                        Actions
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {menuCombos.map((combo) => (
+                                                    <tr key={combo.id}>
+                                                        <td className="fw-semibold">{combo.name}</td>
+                                                        <td>{combo.sku}</td>
+                                                        <td className="text-end">{formatCurrency(combo.priceCents)}</td>
+                                                        <td>
+                                                            <ul className="list-unstyled mb-0 small text-muted">
+                                                                {combo.items.map((component) => (
+                                                                    <li key={`${combo.id}-${component.id}`}>
+                                                                        {component.quantity}× {component.name}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <Badge bg={combo.isAvailable ? 'success' : 'secondary'}>
+                                                                {combo.isAvailable ? 'available' : 'hidden'}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="text-end">
+                                                            <Button
+                                                                variant={
+                                                                    combo.isAvailable ? 'outline-secondary' : 'outline-success'
+                                                                }
+                                                                size="sm"
+                                                                onClick={() => handleToggleComboAvailability(combo)}
+                                                                disabled={Boolean(mutations.menuCombos[combo.id])}
+                                                            >
+                                                                {mutations.menuCombos[combo.id] ? (
+                                                                    <Spinner animation="border" size="sm" />
+                                                                ) : combo.isAvailable ? (
+                                                                    'Hide combo'
+                                                                ) : (
+                                                                    'Show combo'
+                                                                )}
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </Table>
+                                    </div>
+                                ) : null}
+                            </Card.Body>
+                        </Card>
+
+                        <Card className="shadow-sm">
+                            <Card.Body className="d-flex flex-column gap-3">
+                                <div className="d-flex justify-content-between align-items-center">
+                                    <h5 className="mb-0">Existing items</h5>
+                                    <div className="text-muted small">{menuItems.length} items</div>
                                     </div>
                                     {loading.menu && menuItems.length === 0 ? (
                                         <div className="d-flex justify-content-center py-4">
