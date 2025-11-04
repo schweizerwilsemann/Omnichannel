@@ -45,7 +45,8 @@ const {
     Voucher,
     VoucherTier,
     CustomerVoucher,
-    CustomerAuthChallenge
+    CustomerAuthChallenge,
+    MenuComboItem
 } = models;
 
 
@@ -1159,7 +1160,7 @@ export const getMenuForSession = async (sessionToken) => {
             {
                 model: MenuItem,
                 as: 'items',
-                where: { isAvailable: true },
+                where: { isAvailable: true, isCombo: false },
                 required: false
             }
         ],
@@ -1178,6 +1179,44 @@ export const getMenuForSession = async (sessionToken) => {
             }
         });
     }
+
+    const combos = await MenuItem.findAll({
+        where: {
+            isCombo: true,
+            isAvailable: true
+        },
+        include: [
+            {
+                model: MenuCategory,
+                as: 'category',
+                attributes: ['id', 'name', 'restaurantId'],
+                where: { restaurantId: session.restaurantId },
+                required: true
+            },
+            {
+                model: MenuComboItem,
+                as: 'comboComponents',
+                include: [
+                    {
+                        model: MenuItem,
+                        as: 'component',
+                        attributes: ['id', 'name', 'description', 'priceCents', 'sku', 'imageUrl'],
+                        include: [
+                            {
+                                model: MenuCategory,
+                                as: 'category',
+                                attributes: ['id', 'name'],
+                                required: false
+                            }
+                        ],
+                        required: false
+                    }
+                ],
+                required: false
+            }
+        ],
+        order: [['name', 'ASC']]
+    });
 
     return {
         session: {
@@ -1206,7 +1245,41 @@ export const getMenuForSession = async (sessionToken) => {
                 prepTimeSeconds: item.prepTimeSeconds,
                 imageUrl: normalizeAssetUrl(item.imageUrl)
             }))
-        }))
+        })),
+        combos: combos.map((combo) => {
+            const components = combo.comboComponents || [];
+            const derivedImage =
+                combo.imageUrl ||
+                components.find((component) => component.component && component.component.imageUrl)?.component?.imageUrl ||
+                null;
+            return {
+                id: combo.id,
+                name: combo.name,
+                description: combo.description,
+                priceCents: combo.priceCents,
+                price: combo.priceCents / 100,
+                sku: combo.sku,
+                prepTimeSeconds: combo.prepTimeSeconds,
+                imageUrl: normalizeAssetUrl(derivedImage),
+                items: components
+                    .map((component) => {
+                        const item = component.component;
+                        if (!item) {
+                            return null;
+                        }
+                        return {
+                            id: item.id,
+                            name: item.name,
+                            description: item.description,
+                            priceCents: item.priceCents,
+                            quantity: component.quantity || 1,
+                            sku: item.sku,
+                            imageUrl: normalizeAssetUrl(item.imageUrl)
+                        };
+                    })
+                    .filter(Boolean)
+            };
+        })
     };
 };
 

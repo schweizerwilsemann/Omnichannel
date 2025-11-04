@@ -25,7 +25,8 @@ const {
     Promotion,
     Voucher,
     VoucherTier,
-    CustomerVoucher
+    CustomerVoucher,
+    MenuComboItem
 } = models;
 
 const toPlain = (instance) => {
@@ -141,6 +142,7 @@ const formatMenuItem = (instance) => {
         description: item.description,
         priceCents: item.priceCents,
         isAvailable: item.isAvailable,
+        isCombo: Boolean(item.isCombo),
         prepTimeSeconds: item.prepTimeSeconds,
         imageUrl: normalizeAssetUrl(item.imageUrl),
         category: item.category
@@ -152,6 +154,133 @@ const formatMenuItem = (instance) => {
             : null
     };
 };
+
+const formatMenuCombo = (instance) => {
+    const combo = toPlain(instance);
+    if (!combo) {
+        return null;
+    }
+
+    const components = Array.isArray(combo.comboComponents) ? combo.comboComponents : [];
+    const primaryImageSource =
+        combo.imageUrl ||
+        components.find((component) => component.component && component.component.imageUrl)?.component?.imageUrl ||
+        null;
+
+    return {
+        id: combo.id,
+        categoryId: combo.categoryId,
+        restaurantId: combo.category?.restaurantId || null,
+        sku: combo.sku,
+        name: combo.name,
+        description: combo.description,
+        priceCents: combo.priceCents,
+        isAvailable: combo.isAvailable,
+        imageUrl: normalizeAssetUrl(primaryImageSource),
+        items: components
+            .map((component) => {
+                const item = component.component || component.item || null;
+                if (!item) {
+                    return null;
+                }
+                return {
+                    id: item.id,
+                    name: item.name,
+                    priceCents: item.priceCents,
+                    imageUrl: normalizeAssetUrl(item.imageUrl),
+                    quantity: component.quantity || 1,
+                    sku: item.sku
+                };
+            })
+            .filter(Boolean)
+    };
+};
+
+const COMBO_CATEGORY_NAME = 'Combos';
+const COMBO_CATEGORY_DEFAULT_SORT = -100;
+
+const buildComboInclude = (restaurantIds = null) => {
+    const categoryInclude = {
+        model: MenuCategory,
+        as: 'category',
+        attributes: ['id', 'name', 'restaurantId'],
+        required: Boolean(restaurantIds)
+    };
+
+    if (restaurantIds) {
+        categoryInclude.where = { restaurantId: { [Op.in]: restaurantIds } };
+    }
+
+    return [
+        categoryInclude,
+        {
+            model: MenuComboItem,
+            as: 'comboComponents',
+            include: [
+                {
+                    model: MenuItem,
+                    as: 'component',
+                    attributes: ['id', 'name', 'priceCents', 'sku', 'imageUrl'],
+                    include: [
+                        {
+                            model: MenuCategory,
+                            as: 'category',
+                            attributes: ['id', 'restaurantId'],
+                            required: false
+                        }
+                    ],
+                    required: false
+                }
+            ],
+            required: false
+        }
+    ];
+};
+
+const ensureComboCategory = async (restaurantId, { transaction } = {}) => {
+    const [category] = await MenuCategory.findOrCreate({
+        where: {
+            restaurantId,
+            name: COMBO_CATEGORY_NAME
+        },
+        defaults: {
+            sortOrder: COMBO_CATEGORY_DEFAULT_SORT,
+            isActive: true
+        },
+        transaction
+    });
+
+    return category;
+};
+
+const normalizeComboItemsPayload = (items = []) => {
+    const accumulator = new Map();
+    items.forEach((entry) => {
+        const menuItemId = typeof entry.menuItemId === 'string' ? entry.menuItemId.trim() : null;
+        if (!menuItemId) {
+            return;
+        }
+        const rawQuantity = Number.isFinite(entry.quantity)
+            ? entry.quantity
+            : Number.isFinite(Number.parseInt(entry.quantity, 10))
+                ? Number.parseInt(entry.quantity, 10)
+                : 1;
+        const safeQuantity = Math.max(rawQuantity || 0, 1);
+        const existing = accumulator.get(menuItemId) || 0;
+        accumulator.set(menuItemId, existing + safeQuantity);
+    });
+
+    return Array.from(accumulator.entries()).map(([menuItemId, quantity]) => ({
+        menuItemId,
+        quantity
+    }));
+};
+
+const fetchComboById = async (comboId, { transaction } = {}) =>
+    MenuItem.findByPk(comboId, {
+        include: buildComboInclude(),
+        transaction
+    });
 
 const formatMembership = (instance) => {
     const membership = toPlain(instance);
@@ -554,6 +683,14 @@ export const listMenuCatalog = async (restaurantIds, paginationOptions = {}) => 
         order: [['sortOrder', 'ASC'], ['name', 'ASC']]
     });
 
+    const combos = await MenuItem.findAll({
+        where: {
+            isCombo: true
+        },
+        include: buildComboInclude(restaurantIds),
+        order: [['name', 'ASC']]
+    });
+
     const categoryIds = categories.map((category) => category.id);
     const paginationInput = normalizePagination(paginationOptions);
 
@@ -562,13 +699,15 @@ export const listMenuCatalog = async (restaurantIds, paginationOptions = {}) => 
             restaurants,
             categories: categories.map((category) => formatCategory(category)).filter(Boolean),
             items: [],
+            combos: combos.map((combo) => formatMenuCombo(combo)).filter(Boolean),
             pagination: buildPaginationMeta(0, paginationInput.page, paginationInput.pageSize)
         };
     }
 
     const totalItems = await MenuItem.count({
         where: {
-            categoryId: { [Op.in]: categoryIds }
+            categoryId: { [Op.in]: categoryIds },
+            isCombo: false
         }
     });
 
@@ -576,7 +715,8 @@ export const listMenuCatalog = async (restaurantIds, paginationOptions = {}) => 
 
     const items = await MenuItem.findAll({
         where: {
-            categoryId: { [Op.in]: categoryIds }
+            categoryId: { [Op.in]: categoryIds },
+            isCombo: false
         },
         include: [
             {
@@ -594,6 +734,7 @@ export const listMenuCatalog = async (restaurantIds, paginationOptions = {}) => 
         restaurants,
         categories: categories.map((category) => formatCategory(category)).filter(Boolean),
         items: items.map((item) => formatMenuItem(item)).filter(Boolean),
+        combos: combos.map((combo) => formatMenuCombo(combo)).filter(Boolean),
         pagination
     };
 };
@@ -731,6 +872,183 @@ export const updateMenuItem = async (restaurantIds, menuItemId, payload) => {
     });
 
     return formatMenuItem(updated);
+};
+
+export const createMenuCombo = async (restaurantIds, payload) => {
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
+        throw new Error('No restaurants available for this account');
+    }
+
+    const restaurantId = payload.restaurantId;
+    if (!restaurantId || !restaurantIds.includes(restaurantId)) {
+        throw new Error('Restaurant not found or inaccessible');
+    }
+
+    const normalizedComponents = normalizeComboItemsPayload(payload.items || payload.components || []);
+    if (normalizedComponents.length === 0) {
+        throw new Error('Combo must include at least one menu item');
+    }
+
+    const componentIds = normalizedComponents.map((entry) => entry.menuItemId);
+    const componentRecords = await MenuItem.findAll({
+        where: {
+            id: { [Op.in]: componentIds },
+            isCombo: false
+        },
+        include: [
+            {
+                model: MenuCategory,
+                as: 'category',
+                attributes: ['id', 'restaurantId'],
+                where: { restaurantId },
+                required: true
+            }
+        ]
+    });
+
+    if (componentRecords.length !== componentIds.length) {
+        throw new Error('One or more menu items are unavailable for this combo');
+    }
+
+    const normalizedImageUrl = normalizeAssetUrl(payload.imageUrl);
+
+    return sequelize.transaction(async (transaction) => {
+        const comboCategory = await ensureComboCategory(restaurantId, { transaction });
+
+        const combo = await MenuItem.create(
+            {
+                categoryId: comboCategory.id,
+                sku: payload.sku,
+                name: payload.name,
+                description: payload.description || null,
+                priceCents: payload.priceCents,
+                isAvailable: typeof payload.isAvailable === 'boolean' ? payload.isAvailable : true,
+                prepTimeSeconds: payload.prepTimeSeconds ?? null,
+                imageUrl: normalizedImageUrl || null,
+                isCombo: true
+            },
+            { transaction }
+        );
+
+        const bulkPayload = normalizedComponents.map((entry) => ({
+            comboItemId: combo.id,
+            menuItemId: entry.menuItemId,
+            quantity: entry.quantity
+        }));
+
+        await MenuComboItem.bulkCreate(bulkPayload, { transaction });
+
+        const created = await fetchComboById(combo.id, { transaction });
+        return formatMenuCombo(created);
+    });
+};
+
+export const updateMenuCombo = async (restaurantIds, comboId, payload) => {
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
+        throw new Error('No restaurants available for this account');
+    }
+
+    const combo = await MenuItem.findByPk(comboId, {
+        include: [
+            {
+                model: MenuCategory,
+                as: 'category',
+                attributes: ['id', 'restaurantId']
+            }
+        ]
+    });
+
+    if (!combo || !combo.isCombo) {
+        throw new Error('Menu combo not found');
+    }
+
+    const comboRestaurantId = combo.category?.restaurantId;
+    if (!comboRestaurantId || !restaurantIds.includes(comboRestaurantId)) {
+        throw new Error('You do not have access to this combo');
+    }
+
+    const updates = {};
+
+    if (payload.sku !== undefined) {
+        updates.sku = payload.sku;
+    }
+
+    if (payload.name !== undefined) {
+        updates.name = payload.name;
+    }
+
+    if (payload.description !== undefined) {
+        updates.description = payload.description || null;
+    }
+
+    if (payload.priceCents !== undefined) {
+        updates.priceCents = payload.priceCents;
+    }
+
+    if (payload.isAvailable !== undefined) {
+        updates.isAvailable = payload.isAvailable;
+    }
+
+    if (payload.prepTimeSeconds !== undefined) {
+        updates.prepTimeSeconds = payload.prepTimeSeconds ?? null;
+    }
+
+    if (payload.imageUrl !== undefined) {
+        updates.imageUrl = payload.imageUrl ? normalizeAssetUrl(payload.imageUrl) : null;
+    }
+
+    let normalizedComponents = null;
+    if (payload.items !== undefined || payload.components !== undefined) {
+        normalizedComponents = normalizeComboItemsPayload(payload.items || payload.components || []);
+        if (normalizedComponents.length === 0) {
+            throw new Error('Combo must include at least one menu item');
+        }
+
+        const componentIds = normalizedComponents.map((entry) => entry.menuItemId);
+        const componentRecords = await MenuItem.findAll({
+            where: {
+                id: { [Op.in]: componentIds },
+                isCombo: false
+            },
+            include: [
+                {
+                    model: MenuCategory,
+                    as: 'category',
+                    attributes: ['id', 'restaurantId'],
+                    where: { restaurantId: comboRestaurantId },
+                    required: true
+                }
+            ]
+        });
+
+        if (componentRecords.length !== componentIds.length) {
+            throw new Error('One or more selected items are unavailable for this combo');
+        }
+    }
+
+    return sequelize.transaction(async (transaction) => {
+        if (Object.keys(updates).length > 0) {
+            await combo.update(updates, { transaction });
+        }
+
+        if (Array.isArray(normalizedComponents)) {
+            await MenuComboItem.destroy({
+                where: { comboItemId: combo.id },
+                transaction
+            });
+
+            const bulkPayload = normalizedComponents.map((entry) => ({
+                comboItemId: combo.id,
+                menuItemId: entry.menuItemId,
+                quantity: entry.quantity
+            }));
+
+            await MenuComboItem.bulkCreate(bulkPayload, { transaction });
+        }
+
+        const reloaded = await fetchComboById(combo.id, { transaction });
+        return formatMenuCombo(reloaded);
+    });
 };
 
 const resolveExistingCustomer = async (customerPayload, transaction) => {
