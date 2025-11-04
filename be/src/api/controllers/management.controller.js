@@ -2,6 +2,8 @@ import {
     listMenuCatalog,
     createMenuItem,
     updateMenuItem,
+    createMenuCombo,
+    updateMenuCombo,
     listCustomers,
     createCustomerMembership,
     updateCustomerMembership,
@@ -46,6 +48,24 @@ export const updateMenuItemController = async (req, res) => {
         return successResponse(res, data, 200);
     } catch (error) {
         return errorResponse(res, error.message || 'Unable to update menu item', 400);
+    }
+};
+
+export const createMenuComboController = async (req, res) => {
+    try {
+        const data = await createMenuCombo(getRestaurantContext(req), req.body);
+        return successResponse(res, data, 201);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to create menu combo', 400);
+    }
+};
+
+export const updateMenuComboController = async (req, res) => {
+    try {
+        const data = await updateMenuCombo(getRestaurantContext(req), req.params.comboId, req.body);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to update menu combo', 400);
     }
 };
 
@@ -152,6 +172,8 @@ export default {
     getMenuCatalogController,
     createMenuItemController,
     updateMenuItemController,
+    createMenuComboController,
+    updateMenuComboController,
     listCustomersController,
     createCustomerMembershipController,
     updateCustomerMembershipController,
