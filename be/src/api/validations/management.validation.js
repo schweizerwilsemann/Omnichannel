@@ -46,6 +46,34 @@ export const menuItemUpdateSchema = Joi.object({
     imageUrl: Joi.string().uri().allow(null, '').optional()
 }).min(1);
 
+const comboComponentSchema = Joi.object({
+    menuItemId: uuidV4.required(),
+    quantity: Joi.number().integer().min(1).optional()
+});
+
+export const menuComboCreateSchema = Joi.object({
+    restaurantId: uuidV4.required(),
+    sku: Joi.string().max(50).required(),
+    name: Joi.string().max(150).required(),
+    description: Joi.string().allow(null, '').optional(),
+    priceCents: Joi.number().integer().min(0).required(),
+    isAvailable: Joi.boolean().optional(),
+    prepTimeSeconds: Joi.number().integer().min(0).allow(null).optional(),
+    imageUrl: Joi.string().uri().allow(null, '').optional(),
+    items: Joi.array().items(comboComponentSchema).min(1).required()
+});
+
+export const menuComboUpdateSchema = Joi.object({
+    sku: Joi.string().max(50).optional(),
+    name: Joi.string().max(150).optional(),
+    description: Joi.string().allow(null, '').optional(),
+    priceCents: Joi.number().integer().min(0).optional(),
+    isAvailable: Joi.boolean().optional(),
+    prepTimeSeconds: Joi.number().integer().min(0).allow(null).optional(),
+    imageUrl: Joi.string().uri().allow(null, '').optional(),
+    items: Joi.array().items(comboComponentSchema).min(1).optional()
+}).min(1);
+
 const customerPayloadSchema = Joi.object({
     id: uuidV4.optional(),
     firstName: Joi.string().max(80).allow(null, '').optional(),
@@ -121,6 +149,8 @@ export const promotionUpdateSchema = Joi.object({
 export default {
     menuItemCreateSchema,
     menuItemUpdateSchema,
+    menuComboCreateSchema,
+    menuComboUpdateSchema,
     customerMembershipCreateSchema,
     customerMembershipUpdateSchema,
     tableCreateSchema,
