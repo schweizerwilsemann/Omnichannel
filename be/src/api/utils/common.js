@@ -29,7 +29,8 @@ export const TABLES = {
     MENU_RECOMMENDATION_HISTORY: 'menu_recommendation_history',
     MENU_QUERY_LOGS: 'menu_query_logs',
     MENU_QUERY_CANDIDATES: 'menu_query_candidates',
-    MENU_QUERY_CLARIFICATIONS: 'menu_query_clarifications'
+    MENU_QUERY_CLARIFICATIONS: 'menu_query_clarifications',
+    MENU_COMBO_ITEMS: 'menu_combo_items'
 };
 
 export const USER_ROLES = Object.freeze({ OWNER: 'OWNER', MANAGER: 'MANAGER' });
