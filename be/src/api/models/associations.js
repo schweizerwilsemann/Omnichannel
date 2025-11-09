@@ -15,6 +15,7 @@ const setupAssociations = (models) => {
         RestaurantCustomer,
         MenuCategory,
         MenuItem,
+        MenuComboItem,
         GuestSession,
         CustomerAuthChallenge,
         Order,
@@ -70,6 +71,13 @@ const setupAssociations = (models) => {
 
     MenuCategory.hasMany(MenuItem, { foreignKey: 'category_id', as: 'items' });
     MenuItem.belongsTo(MenuCategory, { foreignKey: 'category_id', as: 'category' });
+
+    if (MenuComboItem) {
+        MenuItem.hasMany(MenuComboItem, { foreignKey: 'combo_item_id', as: 'comboComponents' });
+        MenuComboItem.belongsTo(MenuItem, { foreignKey: 'combo_item_id', as: 'combo' });
+        MenuComboItem.belongsTo(MenuItem, { foreignKey: 'menu_item_id', as: 'component' });
+        MenuItem.hasMany(MenuComboItem, { foreignKey: 'menu_item_id', as: 'includedInCombos' });
+    }
 
 
     Customer.hasMany(RestaurantCustomer, { foreignKey: 'customer_id', as: 'memberships' });
