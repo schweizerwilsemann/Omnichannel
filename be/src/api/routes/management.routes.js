@@ -4,6 +4,8 @@ import validationMiddleware from '../middlewares/validation.middleware.js';
 import {
     menuItemCreateSchema,
     menuItemUpdateSchema,
+    menuComboCreateSchema,
+    menuComboUpdateSchema,
     customerMembershipCreateSchema,
     customerMembershipUpdateSchema,
     tableCreateSchema,
@@ -15,6 +17,8 @@ import {
     getMenuCatalogController,
     createMenuItemController,
     updateMenuItemController,
+    createMenuComboController,
+    updateMenuComboController,
     listCustomersController,
     createCustomerMembershipController,
     updateCustomerMembershipController,
@@ -38,7 +42,13 @@ router.patch(
     validationMiddleware(menuItemUpdateSchema),
     updateMenuItemController
 );
-
+router.post('/menu/combos', authenticateAdmin(), validationMiddleware(menuComboCreateSchema), createMenuComboController);
+router.patch(
+    '/menu/combos/:comboId',
+    authenticateAdmin(),
+    validationMiddleware(menuComboUpdateSchema),
+    updateMenuComboController
+);
 router.get('/customers', authenticateAdmin(), listCustomersController);
 router.post(
     '/customers',
