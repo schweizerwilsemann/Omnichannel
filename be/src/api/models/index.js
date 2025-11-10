@@ -13,6 +13,7 @@ import customerModel from './customer.model.js';
 import restaurantCustomerModel from './restaurantCustomer.model.js';
 import menuCategoryModel from './menuCategory.model.js';
 import menuItemModel from './menuItem.model.js';
+import menuComboItemModel from './menuComboItem.model.js';
 import guestSessionModel from './guestSession.model.js';
 import customerAuthChallengeModel from './customerAuthChallenge.model.js';
 import orderModel from './order.model.js';
@@ -48,6 +49,7 @@ const models = {
     RestaurantCustomer: restaurantCustomerModel(sequelize),
     MenuCategory: menuCategoryModel(sequelize),
     MenuItem: menuItemModel(sequelize),
+    MenuComboItem: menuComboItemModel(sequelize),
     GuestSession: guestSessionModel(sequelize),
     CustomerAuthChallenge: customerAuthChallengeModel(sequelize),
     Order: orderModel(sequelize),
