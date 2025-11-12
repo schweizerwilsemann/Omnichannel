@@ -5,6 +5,7 @@ import logger from './config/logger.js';
 import './api/models/index.js';
 import { initializeStorage } from './api/services/storage.service.js';
 import { scheduleRagSyncJob } from './api/services/ragSync.service.js';
+import { scheduleExpirationJob } from './api/services/expiration.service.js';
 
 const app = createExpressApp();
 
@@ -23,6 +24,12 @@ const start = async () => {
         });
 
         scheduleRagSyncJob();
+
+        // Schedule automatic expiration checks for promotions and vouchers
+        if (env.expiration?.enabled !== false) {
+            const intervalMinutes = env.expiration?.intervalMinutes || 60;
+            scheduleExpirationJob(intervalMinutes);
+        }
     } catch (error) {
         logger.error('Failed to start server', { message: error.message });
         process.exit(1);
