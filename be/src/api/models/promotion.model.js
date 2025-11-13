@@ -1,8 +1,9 @@
 import { DataTypes } from 'sequelize';
 import { TABLES, PROMOTION_STATUS } from '../utils/common.js';
+import logger from '../../config/logger.js';
 
-const promotionModel = (sequelize) =>
-    sequelize.define(
+const promotionModel = (sequelize) => {
+    const Promotion = sequelize.define(
         TABLES.PROMOTIONS,
         {
             id: {
@@ -79,8 +80,58 @@ const promotionModel = (sequelize) =>
                 {
                     fields: ['restaurant_id', 'status', 'starts_at', 'ends_at']
                 }
-            ]
+            ],
+            hooks: {
+                afterCreate: async (promotion, options) => {
+                    try {
+                        // Trigger RAG sync after creating a promotion
+                        logger.info('Promotion created, triggering RAG sync', {
+                            promotionId: promotion.id,
+                            name: promotion.name
+                        });
+                        // Dynamic import to avoid circular dependencies
+                        const { syncRagKnowledge } = await import('../services/ragSync.service.js');
+                        await syncRagKnowledge({ flushCache: true });
+                    } catch (error) {
+                        logger.error('Failed to sync RAG after promotion create', {
+                            error: error.message
+                        });
+                    }
+                },
+                afterUpdate: async (promotion, options) => {
+                    try {
+                        // Trigger RAG sync after updating a promotion
+                        logger.info('Promotion updated, triggering RAG sync', {
+                            promotionId: promotion.id,
+                            name: promotion.name
+                        });
+                        const { syncRagKnowledge } = await import('../services/ragSync.service.js');
+                        await syncRagKnowledge({ flushCache: true });
+                    } catch (error) {
+                        logger.error('Failed to sync RAG after promotion update', {
+                            error: error.message
+                        });
+                    }
+                },
+                afterDestroy: async (promotion, options) => {
+                    try {
+                        // Trigger RAG sync after deleting a promotion
+                        logger.info('Promotion deleted, triggering RAG sync', {
+                            promotionId: promotion.id
+                        });
+                        const { syncRagKnowledge } = await import('../services/ragSync.service.js');
+                        await syncRagKnowledge({ flushCache: true });
+                    } catch (error) {
+                        logger.error('Failed to sync RAG after promotion delete', {
+                            error: error.message
+                        });
+                    }
+                }
+            }
         }
     );
+
+    return Promotion;
+};
 
 export default promotionModel;
