@@ -1,4 +1,9 @@
 import {
+    listMenuCategories,
+    getMenuCategory,
+    createMenuCategory,
+    updateMenuCategory,
+    deleteMenuCategory,
     listMenuCatalog,
     createMenuItem,
     updateMenuItem,
@@ -20,9 +25,55 @@ import { successResponse, errorResponse } from '../utils/response.js';
 
 const getRestaurantContext = (req) => req.user?.restaurantIds || [];
 const extractPagination = (req) => ({
-    page: req.query?.page,
-    pageSize: req.query?.pageSize
+    page: parseInt(req.query?.page) || 1,
+    pageSize: parseInt(req.query?.pageSize) || 20
 });
+
+// Menu Category Controllers
+export const listMenuCategoriesController = async (req, res) => {
+    try {
+        const data = await listMenuCategories(getRestaurantContext(req), extractPagination(req));
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to load menu categories', 400);
+    }
+};
+
+export const getMenuCategoryController = async (req, res) => {
+    try {
+        const data = await getMenuCategory(getRestaurantContext(req), req.params.categoryId);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to load menu category', 400);
+    }
+};
+
+export const createMenuCategoryController = async (req, res) => {
+    try {
+        const data = await createMenuCategory(getRestaurantContext(req), req.body);
+        return successResponse(res, data, 201);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to create menu category', 400);
+    }
+};
+
+export const updateMenuCategoryController = async (req, res) => {
+    try {
+        const data = await updateMenuCategory(getRestaurantContext(req), req.params.categoryId, req.body);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to update menu category', 400);
+    }
+};
+
+export const deleteMenuCategoryController = async (req, res) => {
+    try {
+        const data = await deleteMenuCategory(getRestaurantContext(req), req.params.categoryId);
+        return successResponse(res, data, 200);
+    } catch (error) {
+        return errorResponse(res, error.message || 'Unable to delete menu category', 400);
+    }
+};
 
 export const getMenuCatalogController = async (req, res) => {
     try {
@@ -169,6 +220,11 @@ export const dispatchPromotionEmailsController = async (req, res) => {
 };
 
 export default {
+    listMenuCategoriesController,
+    getMenuCategoryController,
+    createMenuCategoryController,
+    updateMenuCategoryController,
+    deleteMenuCategoryController,
     getMenuCatalogController,
     createMenuItemController,
     updateMenuItemController,
