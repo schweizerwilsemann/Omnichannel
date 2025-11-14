@@ -27,7 +27,7 @@ import {
     PAYMENT_METHOD
 } from '../utils/common.js';
 
-const {     
+const {
     sequelize,
     Restaurant,
     RestaurantTable,
@@ -438,7 +438,7 @@ export const listActivePromotions = async (sessionToken) => {
             status: PROMOTION_STATUS.ACTIVE,
             [Op.and]: [
                 { [Op.or]: [{ startsAt: null }, { startsAt: { [Op.lte]: referenceDate } }] },
-                { [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gte]: referenceDate } }] }
+                { [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gt]: referenceDate } }] }
             ]
         },
         include: [
@@ -579,7 +579,7 @@ const claimVoucherForCustomer = async ({ restaurantId, customerId }, payload = {
                     status: PROMOTION_STATUS.ACTIVE,
                     [Op.and]: [
                         { [Op.or]: [{ startsAt: null }, { startsAt: { [Op.lte]: now } }] },
-                        { [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gte]: now } }] }
+                        { [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gt]: now } }] }
                     ]
                 },
                 transaction,
