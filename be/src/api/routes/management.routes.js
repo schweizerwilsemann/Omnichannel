@@ -2,6 +2,8 @@ import { Router } from 'express';
 import authenticateAdmin from '../middlewares/auth.middleware.js';
 import validationMiddleware from '../middlewares/validation.middleware.js';
 import {
+    menuCategoryCreateSchema,
+    menuCategoryUpdateSchema,
     menuItemCreateSchema,
     menuItemUpdateSchema,
     menuComboCreateSchema,
@@ -14,6 +16,11 @@ import {
     promotionUpdateSchema
 } from '../validations/management.validation.js';
 import {
+    listMenuCategoriesController,
+    getMenuCategoryController,
+    createMenuCategoryController,
+    updateMenuCategoryController,
+    deleteMenuCategoryController,
     getMenuCatalogController,
     createMenuItemController,
     updateMenuItemController,
@@ -34,6 +41,14 @@ import {
 
 const router = Router();
 
+// Menu Category routes
+router.get('/menu/categories', authenticateAdmin(), listMenuCategoriesController);
+router.get('/menu/categories/:categoryId', authenticateAdmin(), getMenuCategoryController);
+router.post('/menu/categories', authenticateAdmin(), validationMiddleware(menuCategoryCreateSchema), createMenuCategoryController);
+router.patch('/menu/categories/:categoryId', authenticateAdmin(), validationMiddleware(menuCategoryUpdateSchema), updateMenuCategoryController);
+router.delete('/menu/categories/:categoryId', authenticateAdmin(), deleteMenuCategoryController);
+
+// Menu Item routes
 router.get('/menu', authenticateAdmin(), getMenuCatalogController);
 router.post('/menu/items', authenticateAdmin(), validationMiddleware(menuItemCreateSchema), createMenuItemController);
 router.patch(
