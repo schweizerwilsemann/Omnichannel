@@ -49,6 +49,164 @@ const toPlain = (instance) => {
     return null;
 };
 
+// Menu Category CRUD Operations
+export const listMenuCategories = async (restaurantIds, pagination = {}) => {
+    const { page = 1, pageSize = 20 } = pagination;
+    const offset = (page - 1) * pageSize;
+
+    const categories = await MenuCategory.findAndCountAll({
+        where: {
+            restaurantId: { [Op.in]: restaurantIds }
+        },
+        include: [{
+            model: Restaurant,
+            as: 'restaurant',
+            attributes: ['id', 'name']
+        }],
+        order: [['restaurant_id', 'ASC'], ['sort_order', 'ASC'], ['name', 'ASC']],
+        offset,
+        limit: pageSize
+    });
+
+    return {
+        categories: categories.rows.map(toPlain),
+        totalItems: categories.count,
+        page,
+        pageSize,
+        totalPages: Math.ceil(categories.count / pageSize)
+    };
+};
+
+export const getMenuCategory = async (restaurantIds, categoryId) => {
+    const category = await MenuCategory.findOne({
+        where: {
+            id: categoryId,
+            restaurantId: { [Op.in]: restaurantIds }
+        },
+        include: [{
+            model: Restaurant,
+            as: 'restaurant',
+            attributes: ['id', 'name']
+        }]
+    });
+
+    if (!category) {
+        throw new Error('Menu category not found');
+    }
+
+    return toPlain(category);
+};
+
+export const createMenuCategory = async (restaurantIds, categoryData) => {
+    const { restaurantId, name, sortOrder = 0, isActive = true } = categoryData;
+
+    if (!restaurantIds.includes(restaurantId)) {
+        throw new Error('Restaurant not accessible');
+    }
+
+    // Check if category name already exists for this restaurant
+    const existingCategory = await MenuCategory.findOne({
+        where: {
+            restaurantId,
+            name: name.trim()
+        }
+    });
+
+    if (existingCategory) {
+        throw new Error('Category name already exists for this restaurant');
+    }
+
+    const category = await MenuCategory.create({
+        restaurantId,
+        name: name.trim(),
+        sortOrder,
+        isActive
+    });
+
+    const createdCategory = await MenuCategory.findOne({
+        where: { id: category.id },
+        include: [{
+            model: Restaurant,
+            as: 'restaurant',
+            attributes: ['id', 'name']
+        }]
+    });
+
+    return toPlain(createdCategory);
+};
+
+export const updateMenuCategory = async (restaurantIds, categoryId, categoryData) => {
+    const category = await MenuCategory.findOne({
+        where: {
+            id: categoryId,
+            restaurantId: { [Op.in]: restaurantIds }
+        }
+    });
+
+    if (!category) {
+        throw new Error('Menu category not found');
+    }
+
+    const { name, sortOrder, isActive } = categoryData;
+
+    // Check if new name conflicts with existing categories (excluding current)
+    if (name && name.trim() !== category.name) {
+        const existingCategory = await MenuCategory.findOne({
+            where: {
+                restaurantId: category.restaurantId,
+                name: name.trim(),
+                id: { [Op.ne]: categoryId }
+            }
+        });
+
+        if (existingCategory) {
+            throw new Error('Category name already exists for this restaurant');
+        }
+    }
+
+    await category.update({
+        ...(name && { name: name.trim() }),
+        ...(sortOrder !== undefined && { sortOrder }),
+        ...(isActive !== undefined && { isActive })
+    });
+
+    const updatedCategory = await MenuCategory.findOne({
+        where: { id: categoryId },
+        include: [{
+            model: Restaurant,
+            as: 'restaurant',
+            attributes: ['id', 'name']
+        }]
+    });
+
+    return toPlain(updatedCategory);
+};
+
+export const deleteMenuCategory = async (restaurantIds, categoryId) => {
+    const category = await MenuCategory.findOne({
+        where: {
+            id: categoryId,
+            restaurantId: { [Op.in]: restaurantIds }
+        }
+    });
+
+    if (!category) {
+        throw new Error('Menu category not found');
+    }
+
+    // Check if category has menu items
+    const itemCount = await MenuItem.count({
+        where: { categoryId }
+    });
+
+    if (itemCount > 0) {
+        throw new Error('Cannot delete category that contains menu items');
+    }
+
+    await category.destroy();
+    return { success: true, message: 'Menu category deleted successfully' };
+};
+
 const parseDateInput = (value) => {
     if (!value) {
         return null;
@@ -1689,7 +1847,14 @@ export const dispatchPromotionEmails = async (restaurantIds = [], promotionId) =
     };
 };
 
+
+
 export default {
+    listMenuCategories,
+    getMenuCategory,
+    createMenuCategory,
+    updateMenuCategory,
+    deleteMenuCategory,
     listMenuCatalog,
     createMenuItem,
     updateMenuItem,

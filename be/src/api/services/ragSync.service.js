@@ -247,20 +247,25 @@ const resolveRestaurants = async (restaurantIds) => {
 };
 
 const loadPromotions = async (restaurantIds) => {
+    const now = new Date();
+
+    // Only load promotions that are currently valid based on dates
+    // Don't rely on status field alone as it may not be updated yet
     const whereClause = {
         restaurantId: { [Op.in]: restaurantIds },
-        status: { [Op.in]: [PROMOTION_STATUS.ACTIVE, PROMOTION_STATUS.SCHEDULED] }
+        [Op.and]: [
+            // Must have started (or have no start date)
+            {
+                [Op.or]: [{ startsAt: null }, { startsAt: { [Op.lte]: now } }]
+            },
+            // Must not have ended yet (or have no end date)
+            {
+                [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gt]: now } }]
+            }
+        ],
+        // Exclude explicitly expired/inactive promotions
+        status: { [Op.notIn]: [PROMOTION_STATUS.EXPIRED, PROMOTION_STATUS.INACTIVE] }
     };
-
-    const now = new Date();
-    whereClause[Op.and] = [
-        {
-            [Op.or]: [{ startsAt: null }, { startsAt: { [Op.lte]: now } }]
-        },
-        {
-            [Op.or]: [{ endsAt: null }, { endsAt: { [Op.gte]: now } }]
-        }
-    ];
 
     const records = await Promotion.findAll({
         where: whereClause,
@@ -303,10 +308,44 @@ const collectDocuments = async (restaurantIds) => {
 
     const [promotions, categories] = await Promise.all([loadPromotions(ids), loadMenuCategories(ids)]);
 
+    logger.info('RAG Sync - Loaded data', {
+        restaurantCount: restaurants.length,
+        promotionCount: promotions.length,
+        categoryCount: categories.length
+    });
+
+    if (promotions.length > 0) {
+        logger.info('RAG Sync - Promotions loaded:', promotions.map(p => ({
+            id: p.id,
+            name: p.name,
+            status: p.status,
+            startsAt: p.startsAt,
+            endsAt: p.endsAt
+        })));
+    }
+
+    const restaurantDocs = buildRestaurantDocuments(restaurants);
+    const promotionDocs = buildPromotionDocuments(promotions, restaurantMap);
+    const menuDocs = buildMenuDocuments(categories, restaurantMap);
+
+    logger.info('RAG Sync - Built documents', {
+        restaurantDocs: restaurantDocs.length,
+        promotionDocs: promotionDocs.length,
+        menuDocs: menuDocs.length,
+        total: restaurantDocs.length + promotionDocs.length + menuDocs.length
+    });
+
+    if (promotionDocs.length > 0) {
+        logger.info('RAG Sync - Promotion documents:', promotionDocs.map(d => ({
+            source_id: d.metadata.source_id,
+            text_preview: d.text.substring(0, 100)
+        })));
+    }
+
     const documents = [
-        ...buildRestaurantDocuments(restaurants),
-        ...buildPromotionDocuments(promotions, restaurantMap),
-        ...buildMenuDocuments(categories, restaurantMap)
+        ...restaurantDocs,
+        ...promotionDocs,
+        ...menuDocs
     ];
 
     return { documents, restaurants };
