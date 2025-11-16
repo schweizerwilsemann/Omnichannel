@@ -2,6 +2,22 @@ import Joi from 'joi';
 
 const uuidV4 = Joi.string().guid({ version: 'uuidv4' });
 
+// Menu Category validation schemas
+export const menuCategoryCreateSchema = Joi.object({
+    restaurantId: uuidV4.required(),
+    name: Joi.string().max(100).required(),
+    sortOrder: Joi.number().integer().min(0).optional(),
+    isActive: Joi.boolean().optional()
+});
+
+export const menuCategoryUpdateSchema = Joi.object({
+    name: Joi.string().max(100).optional(),
+    sortOrder: Joi.number().integer().min(0).optional(),
+    isActive: Joi.boolean().optional()
+}).min(1);
+
+
+
 const promotionVoucherTierSchema = Joi.object({
     minSpendCents: Joi.number().integer().min(0).required(),
     discountPercent: Joi.number().min(0).max(50).required(),
@@ -32,7 +48,7 @@ export const menuItemCreateSchema = Joi.object({
     priceCents: Joi.number().integer().min(0).required(),
     isAvailable: Joi.boolean().optional(),
     prepTimeSeconds: Joi.number().integer().min(0).allow(null).optional(),
-    imageUrl: Joi.string().uri().allow(null, '').optional()
+    imageUrl: Joi.string().allow(null, '').optional()
 });
 
 export const menuItemUpdateSchema = Joi.object({
@@ -43,7 +59,7 @@ export const menuItemUpdateSchema = Joi.object({
     priceCents: Joi.number().integer().min(0).optional(),
     isAvailable: Joi.boolean().optional(),
     prepTimeSeconds: Joi.number().integer().min(0).allow(null).optional(),
-    imageUrl: Joi.string().uri().allow(null, '').optional()
+    imageUrl: Joi.string().allow(null, '').optional()
 }).min(1);
 
 const comboComponentSchema = Joi.object({
@@ -59,7 +75,7 @@ export const menuComboCreateSchema = Joi.object({
     priceCents: Joi.number().integer().min(0).required(),
     isAvailable: Joi.boolean().optional(),
     prepTimeSeconds: Joi.number().integer().min(0).allow(null).optional(),
-    imageUrl: Joi.string().uri().allow(null, '').optional(),
+    imageUrl: Joi.string().allow(null, '').optional(),
     items: Joi.array().items(comboComponentSchema).min(1).required()
 });
 
@@ -70,7 +86,7 @@ export const menuComboUpdateSchema = Joi.object({
     priceCents: Joi.number().integer().min(0).optional(),
     isAvailable: Joi.boolean().optional(),
     prepTimeSeconds: Joi.number().integer().min(0).allow(null).optional(),
-    imageUrl: Joi.string().uri().allow(null, '').optional(),
+    imageUrl: Joi.string().allow(null, '').optional(),
     items: Joi.array().items(comboComponentSchema).min(1).optional()
 }).min(1);
 
@@ -118,9 +134,9 @@ export const promotionCreateSchema = Joi.object({
     name: Joi.string().max(150).required(),
     headline: Joi.string().max(200).allow(null, '').optional(),
     description: Joi.string().allow(null, '').optional(),
-    bannerImageUrl: Joi.string().uri().allow(null, '').optional(),
+    bannerImageUrl: Joi.string().allow(null, '').optional(),
     ctaLabel: Joi.string().max(100).allow(null, '').optional(),
-    ctaUrl: Joi.string().uri().allow(null, '').optional(),
+    ctaUrl: Joi.string().allow(null, '').optional(),
     status: Joi.string().valid('DRAFT', 'SCHEDULED', 'ACTIVE', 'EXPIRED', 'ARCHIVED').optional(),
     startsAt: Joi.date().allow(null, '').optional(),
     endsAt: Joi.date().allow(null, '').optional(),
@@ -134,9 +150,9 @@ export const promotionUpdateSchema = Joi.object({
     name: Joi.string().max(150).optional(),
     headline: Joi.string().max(200).allow(null, '').optional(),
     description: Joi.string().allow(null, '').optional(),
-    bannerImageUrl: Joi.string().uri().allow(null, '').optional(),
+    bannerImageUrl: Joi.string().allow(null, '').optional(),
     ctaLabel: Joi.string().max(100).allow(null, '').optional(),
-    ctaUrl: Joi.string().uri().allow(null, '').optional(),
+    ctaUrl: Joi.string().allow(null, '').optional(),
     status: Joi.string().valid('DRAFT', 'SCHEDULED', 'ACTIVE', 'EXPIRED', 'ARCHIVED').optional(),
     startsAt: Joi.date().allow(null, '').optional(),
     endsAt: Joi.date().allow(null, '').optional(),
@@ -147,6 +163,8 @@ export const promotionUpdateSchema = Joi.object({
 }).min(1);
 
 export default {
+    menuCategoryCreateSchema,
+    menuCategoryUpdateSchema,
     menuItemCreateSchema,
     menuItemUpdateSchema,
     menuComboCreateSchema,
