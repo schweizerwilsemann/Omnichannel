@@ -59,6 +59,10 @@ const env = {
             intervalMinutes: Number(process.env.RAG_AUTO_SYNC_INTERVAL_MINUTES) || 60
         }
     },
+    expiration: {
+        enabled: process.env.EXPIRATION_JOB_ENABLED !== 'false', // Enabled by default
+        intervalMinutes: Number(process.env.EXPIRATION_JOB_INTERVAL_MINUTES) || 60
+    },
     clarificationModel: {
         url: process.env.CLARIFICATION_MODEL_URL || '',
         adminKey: process.env.CLARIFICATION_MODEL_ADMIN_KEY || process.env.RAG_ADMIN_KEY || '',
