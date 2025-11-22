@@ -195,79 +195,79 @@ const pickNFromArray = (items, n) => {
     return picked;
 };
 
-const buildSyntheticTransactions = (restaurant, menuItems, options) => {
-    const transactions = [];
-    if (!Array.isArray(menuItems) || menuItems.length < 2) {
-        return transactions;
-    }
+// const buildSyntheticTransactions = (restaurant, menuItems, options) => {
+//     const transactions = [];
+//     if (!Array.isArray(menuItems) || menuItems.length < 2) {
+//         return transactions;
+//     }
 
-    const { syntheticTransactionsPerItem, syntheticComboWeight } = options;
-    const generatedAt = new Date().toISOString();
-    const totalTarget = Math.max(syntheticTransactionsPerItem * menuItems.length, 100);
-    const categories = new Map();
+//     const { syntheticTransactionsPerItem, syntheticComboWeight } = options;
+//     const generatedAt = new Date().toISOString();
+//     const totalTarget = Math.max(syntheticTransactionsPerItem * menuItems.length, 100);
+//     const categories = new Map();
 
-    menuItems.forEach((item) => {
-        const categoryId = item.categoryId || 'uncategorised';
-        if (!categories.has(categoryId)) {
-            categories.set(categoryId, []);
-        }
-        categories.get(categoryId).push(item);
-    });
+//     menuItems.forEach((item) => {
+//         const categoryId = item.categoryId || 'uncategorised';
+//         if (!categories.has(categoryId)) {
+//             categories.set(categoryId, []);
+//         }
+//         categories.get(categoryId).push(item);
+//     });
 
-    const categoryList = Array.from(categories.values()).filter((list) => list.length > 0);
-    const focusPairs = [];
+//     const categoryList = Array.from(categories.values()).filter((list) => list.length > 0);
+//     const focusPairs = [];
 
-    menuItems.forEach((item) => {
-        const companionPool = menuItems.filter((candidate) => candidate.id !== item.id);
-        const companions = pickNFromArray(companionPool, Math.max(2, Math.floor(companionPool.length * 0.15)));
-        companions.forEach((companion) => {
-            focusPairs.push([item.id, companion.id]);
-        });
-    });
+//     menuItems.forEach((item) => {
+//         const companionPool = menuItems.filter((candidate) => candidate.id !== item.id);
+//         const companions = pickNFromArray(companionPool, Math.max(2, Math.floor(companionPool.length * 0.15)));
+//         companions.forEach((companion) => {
+//             focusPairs.push([item.id, companion.id]);
+//         });
+//     });
 
-    for (let i = 0; i < totalTarget; i += 1) {
-        const leverageCombo = Math.random() < syntheticComboWeight;
-        let itemsInOrder = [];
+//     for (let i = 0; i < totalTarget; i += 1) {
+//         const leverageCombo = Math.random() < syntheticComboWeight;
+//         let itemsInOrder = [];
 
-        if (leverageCombo && focusPairs.length > 0) {
-            const pair = randomFromArray(focusPairs);
-            if (Array.isArray(pair) && pair.length === 2) {
-                itemsInOrder = [...pair];
-            }
+//         if (leverageCombo && focusPairs.length > 0) {
+//             const pair = randomFromArray(focusPairs);
+//             if (Array.isArray(pair) && pair.length === 2) {
+//                 itemsInOrder = [...pair];
+//             }
 
-            if (Math.random() < 0.5) {
-                const extra = randomFromArray(menuItems)?.id;
-                if (extra && !itemsInOrder.includes(extra)) {
-                    itemsInOrder.push(extra);
-                }
-            }
-        }
+//             if (Math.random() < 0.5) {
+//                 const extra = randomFromArray(menuItems)?.id;
+//                 if (extra && !itemsInOrder.includes(extra)) {
+//                     itemsInOrder.push(extra);
+//                 }
+//             }
+//         }
 
-        if (itemsInOrder.length < 2) {
-            const categorySample = randomFromArray(categoryList);
-            const size = 2 + Math.floor(Math.random() * 3);
-            const pool = Array.isArray(categorySample) && categorySample.length >= 2 ? categorySample : menuItems;
-            const selected = pickNFromArray(pool, size);
-            itemsInOrder = selected.map((item) => item.id);
-        }
+//         if (itemsInOrder.length < 2) {
+//             const categorySample = randomFromArray(categoryList);
+//             const size = 2 + Math.floor(Math.random() * 3);
+//             const pool = Array.isArray(categorySample) && categorySample.length >= 2 ? categorySample : menuItems;
+//             const selected = pickNFromArray(pool, size);
+//             itemsInOrder = selected.map((item) => item.id);
+//         }
 
-        if (itemsInOrder.length >= 2) {
-            transactions.push({
-                items: itemsInOrder,
-                source: 'synthetic',
-                generatedAt
-            });
-        }
-    }
+//         if (itemsInOrder.length >= 2) {
+//             transactions.push({
+//                 items: itemsInOrder,
+//                 source: 'synthetic',
+//                 generatedAt
+//             });
+//         }
+//     }
 
-    logger.debug('Generated synthetic transactions', {
-        restaurantId: restaurant.id,
-        restaurantName: restaurant.name,
-        syntheticCount: transactions.length
-    });
+//     logger.debug('Generated synthetic transactions', {
+//         restaurantId: restaurant.id,
+//         restaurantName: restaurant.name,
+//         syntheticCount: transactions.length
+//     });
 
-    return transactions;
-};
+//     return transactions;
+// };
 
 const loadHistoricalTransactions = async (restaurantId) => {
     const rows = await OrderItem.findAll({
@@ -552,9 +552,10 @@ export const rebuildMenuRecommendations = async (options = {}) => {
             transactions.push(...historical);
         }
 
-        const synthetic = buildSyntheticTransactions(restaurant, menuItems, settings);
-        const syntheticCount = synthetic.length;
-        transactions.push(...synthetic);
+        let syntheticCount = 0;
+        // const synthetic = buildSyntheticTransactions(restaurant, menuItems, settings);
+        // syntheticCount = synthetic.length;
+        // transactions.push(...synthetic);
 
         if (!transactions.length) {
             summary.push({
