@@ -6,7 +6,8 @@ const sequelize = new Sequelize(env.db.name, env.db.user, env.db.password, {
     host: env.db.host,
     port: env.db.port,
     dialect: env.db.dialect,
-    logging: (msg) => logger.debug ? logger.debug(msg) : null
+    logging: (msg) => logger.debug ? logger.debug(msg) : null,
+    timezone: '+07:00' // Asia/Ho_Chi_Minh timezone
 });
 
 export default sequelize;
