@@ -1,7 +1,21 @@
 {
   "exported_at": null,
-  "count": 43,
+  "count": 44,
   "items": [
+    {
+      "menu_item_id": "deb36527-6b81-42e0-bde8-e73e9d085865",
+      "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
+      "restaurant_name": "Bella Vista Restaurant",
+      "category_id": "367fd2d5-0e65-4951-ba3c-939ff253b057",
+      "category_name": "Combos",
+      "sku": "COMBO001",
+      "name": "Family Platter",
+      "description": "Join this combo for amazing price",
+      "image_url": "/api/v1/assets/1762150346414-pizza-hut-my-hut-box-meal.jpg",
+      "price_cents": 3499,
+      "prep_time_seconds": 1000,
+      "is_available": true
+    },
     {
       "menu_item_id": "609b8c76-4c9c-4b12-982b-23bac0973d23",
       "restaurant_id": "792b8e03-b79c-4303-8953-76f436c6c8cd",
@@ -810,7 +824,7 @@
       "sku": "PAS004",
       "name": "Mozzarella Pasta",
       "description": "Please wait",
-      "image_url": "http://localhost:9000/omnichannel-assets/1760525792704-tomato-and-mozzarella-pasta-9.jpg",
+      "image_url": "http://localhost:3301/api/v1/assets/1760525792704-tomato-and-mozzarella-pasta-9.jpg",
       "price_cents": 2399,
       "prep_time_seconds": 600,
       "is_available": true,

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_port: int = Field(8081, alias="APP_PORT")
     qdrant_host: str = Field("localhost", alias="QDRANT_HOST")
     qdrant_port: int = Field(6333, alias="QDRANT_PORT")
-    qdrant_collection: str = Field("restaurant-faq", alias="QDRANT_COLLECTION")
+    qdrant_collection: str = Field("menu_similarity", alias="QDRANT_COLLECTION")
     redis_url: str = Field("redis://localhost:6379/0", alias="REDIS_URL")
     ollama_host: str = Field("http://localhost:11434", alias="OLLAMA_HOST")
     ollama_embed_model: str = Field("nomic-embed-text", alias="OLLAMA_EMBED_MODEL")
